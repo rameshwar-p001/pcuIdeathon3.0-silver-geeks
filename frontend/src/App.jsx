@@ -1,254 +1,302 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import FacultyDashboard from './components/FacultyDashboard'
+import LoginForm from './components/LoginForm'
+import StudentDashboard from './components/StudentDashboard'
+import AdminDashboard from './components/admin/AdminDashboard'
 import './App.css'
 
+const ADMIN_EMAIL = 'admin@rdp.com'
+const ADMIN_PASSWORD = '123456'
+
 function App() {
-  const [mode, setMode] = useState('login')
+  const [loggedInRole, setLoggedInRole] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [activeAdminPage, setActiveAdminPage] = useState('dashboard')
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [loggedInUser, setLoggedInUser] = useState(null)
+  const [studentName, setStudentName] = useState('')
+  const [studentId, setStudentId] = useState('')
+  const [studentPassword, setStudentPassword] = useState('')
+  const [facultyName, setFacultyName] = useState('')
+  const [facultyId, setFacultyId] = useState('')
+  const [facultyPassword, setFacultyPassword] = useState('')
+  const [students, setStudents] = useState([])
+  const [faculties, setFaculties] = useState([])
 
-  const isRegister = mode === 'register'
-  const passwordsMatch = useMemo(() => {
-    if (!isRegister) {
-      return true
+  useEffect(() => {
+    const savedSession = localStorage.getItem('campusSession')
+
+    if (savedSession) {
+      const parsed = JSON.parse(savedSession)
+      setIsAuthenticated(true)
+      setLoggedInRole(parsed.role)
+      setLoggedInUser(parsed.user)
+      setSuccessMessage(`Welcome back, ${parsed.user.name}.`)
     }
+  }, [])
 
-    return password.length > 0 && password === confirmPassword
-  }, [confirmPassword, isRegister, password])
-
-  const handleSubmit = async (event) => {
+  const handleLogin = (event) => {
     event.preventDefault()
-
-    if (isRegister && !passwordsMatch) {
-      return
-    }
-
-    setIsSubmitting(true)
     setErrorMessage('')
     setSuccessMessage('')
 
-    try {
-      const endpoint = isRegister ? 'register' : 'login'
-      const response = await fetch(`http://localhost:5000/api/auth/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
+    const credential = email.trim()
 
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Authentication failed')
-      }
-
-      if (data.user?.idToken) {
-        const storage = rememberMe ? localStorage : sessionStorage
-        storage.setItem('authToken', data.user.idToken)
-        storage.setItem(
-          'authUser',
-          JSON.stringify({ uid: data.user.uid, email: data.user.email }),
-        )
-      }
-
-      setSuccessMessage(data.message || 'Authentication successful')
-      setPassword('')
-      setConfirmPassword('')
-    } catch (error) {
-      setErrorMessage(error.message || 'Something went wrong. Please try again.')
-    } finally {
-      setIsSubmitting(false)
+    if (!credential || !password) {
+      setErrorMessage('Email or ID and password are required.')
+      return
     }
+
+    if (credential === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      const user = { name: 'Admin', id: ADMIN_EMAIL }
+      setLoggedInRole('admin')
+      setLoggedInUser(user)
+      setIsAuthenticated(true)
+
+      if (rememberMe) {
+        localStorage.setItem('campusSession', JSON.stringify({ role: 'admin', user }))
+      } else {
+        localStorage.removeItem('campusSession')
+      }
+
+      setSuccessMessage('Login successful.')
+      setPassword('')
+      return
+    }
+
+    const matchedStudent = students.find(
+      (user) => user.id === credential && user.password === password,
+    )
+
+    if (matchedStudent) {
+      setLoggedInRole('student')
+      setLoggedInUser(matchedStudent)
+      setIsAuthenticated(true)
+
+      if (rememberMe) {
+        localStorage.setItem(
+          'campusSession',
+          JSON.stringify({ role: 'student', user: matchedStudent }),
+        )
+      } else {
+        localStorage.removeItem('campusSession')
+      }
+
+      setSuccessMessage('Login successful.')
+      setPassword('')
+      return
+    }
+
+    const matchedFaculty = faculties.find(
+      (user) => user.id === credential && user.password === password,
+    )
+
+    if (matchedFaculty) {
+      setLoggedInRole('faculty')
+      setLoggedInUser(matchedFaculty)
+      setIsAuthenticated(true)
+
+      if (rememberMe) {
+        localStorage.setItem(
+          'campusSession',
+          JSON.stringify({ role: 'faculty', user: matchedFaculty }),
+        )
+      } else {
+        localStorage.removeItem('campusSession')
+      }
+
+      setSuccessMessage('Login successful.')
+      setPassword('')
+      return
+    }
+
+    setErrorMessage('Invalid credentials. Please check Email/ID and password.')
   }
 
-  const PasswordEyeIcon = ({ isOpen }) => (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M12 5C6.5 5 2.2 8.5 1 12c1.2 3.5 5.5 7 11 7s9.8-3.5 11-7c-1.2-3.5-5.5-7-11-7Zm0 11.2A4.2 4.2 0 1 1 12 7.8a4.2 4.2 0 0 1 0 8.4Z"
-        fill="currentColor"
-      />
-      <circle cx="12" cy="12" r="2.1" fill="currentColor" />
-      {!isOpen && (
-        <path d="m4 4 16 16" stroke="currentColor" strokeWidth="2" />
-      )}
-    </svg>
-  )
+  const handleLogout = () => {
+    localStorage.removeItem('campusSession')
+    setIsAuthenticated(false)
+    setLoggedInRole('')
+    setLoggedInUser(null)
+    setPassword('')
+    setEmail('')
+    setRememberMe(false)
+    setSuccessMessage('Logged out successfully.')
+    setErrorMessage('')
+  }
 
+  const handleCreateStudent = (event) => {
+    event.preventDefault()
+    setStudents((prev) => [
+      {
+        name: studentName.trim(),
+        id: studentId.trim(),
+        password: studentPassword,
+      },
+      ...prev,
+    ])
+
+    setSuccessMessage(`Student ${studentName.trim()} created.`)
+    setErrorMessage('')
+    setStudentName('')
+    setStudentId('')
+    setStudentPassword('')
+  }
+
+  const handleAddFaculty = (event) => {
+    event.preventDefault()
+    setFaculties((prev) => [
+      {
+        name: facultyName.trim(),
+        id: facultyId.trim(),
+        password: facultyPassword,
+      },
+      ...prev,
+    ])
+
+    setSuccessMessage(`Faculty ${facultyName.trim()} added.`)
+    setErrorMessage('')
+    setFacultyName('')
+    setFacultyId('')
+    setFacultyPassword('')
+  }
+
+  const handleDeleteUser = (role, id) => {
+    if (role === 'Student') {
+      setStudents((prev) => prev.filter((student) => student.id !== id))
+    } else {
+      setFaculties((prev) => prev.filter((faculty) => faculty.id !== id))
+    }
+
+    setSuccessMessage(`${role} user deleted.`)
+  }
+
+  const handleEditUser = (role, id) => {
+    if (role === 'Student') {
+      const target = students.find((student) => student.id === id)
+      if (!target) {
+        return
+      }
+
+      const updatedName = window.prompt('Update name', target.name)
+      if (!updatedName) {
+        return
+      }
+
+      setStudents((prev) =>
+        prev.map((student) =>
+          student.id === id ? { ...student, name: updatedName.trim() } : student,
+        ),
+      )
+      setSuccessMessage('Student updated.')
+      return
+    }
+
+    const target = faculties.find((faculty) => faculty.id === id)
+     if (!target) {
+       return
+     }
+ 
+     const updatedName = window.prompt('Update name', target.name)
+     setFaculties((prev) =>
+       prev.map((faculty) =>
+         faculty.id === id ? { ...faculty, name: updatedName.trim() } : faculty,
+       ),
+     )
+     setSuccessMessage('Faculty updated.')
+   }
+ 
+   const showForgotMessage = () => {
+     setSuccessMessage('Please contact admin to reset your credentials.')
+     setErrorMessage('')
+   }
+ 
   return (
-    <main className="auth-page">
-      <section className="brand-panel" aria-label="Branding section">
-        
-        <h1>Campus Ai portal </h1>
-        <p className="brand-copy">
-          Securely access your classes, attendance, and student dashboard in one
-          clean place.
-        </p>
-        <div className="brand-stats">
-          <article>
-            <h2>24/7</h2>
-            <p>Access Anywhere</p>
-          </article>
-          <article>
-            <h2>99.9%</h2>
-            <p>Reliable Uptime</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="form-panel" aria-label="Authentication form">
-        <div className="auth-card">
-          <div className="mode-switch" role="tablist" aria-label="Auth mode">
-            <button
-              type="button"
-              role="tab"
-              className={mode === 'login' ? 'active' : ''}
-              aria-selected={mode === 'login'}
-              onClick={() => setMode('login')}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={mode === 'register' ? 'active' : ''}
-              aria-selected={mode === 'register'}
-              onClick={() => setMode('register')}
-            >
-              Register
-            </button>
-          </div>
-
-          <div className="auth-headline">
-            <h2>{isRegister ? 'Create your account' : 'Welcome back'}</h2>
-            <p>
-              {isRegister
-                ? 'Start managing your campus journey today.'
-                : 'Sign in to continue to your dashboard.'}
-            </p>
-          </div>
-
-          {errorMessage && (
-            <p className="field-error" role="alert">
-              {errorMessage}
-            </p>
-          )}
-          {successMessage && (
-            <p className="field-success" role="status">
-              {successMessage}
-            </p>
-          )}
-
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              placeholder="name@college.edu"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-
-            <label htmlFor="password">Password</label>
-            <div className="password-field">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Enter password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="toggle-visibility"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                onClick={() => setShowPassword((prev) => !prev)}
-              >
-                <PasswordEyeIcon isOpen={showPassword} />
-              </button>
-            </div>
-
-            {isRegister && (
-              <>
-                <label htmlFor="confirm-password">Confirm Password</label>
-                <div className="password-field">
-                  <input
-                    id="confirm-password"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Confirm password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="toggle-visibility"
-                    aria-label={
-                      showConfirmPassword
-                        ? 'Hide confirm password'
-                        : 'Show confirm password'
-                    }
-                    onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  >
-                    <PasswordEyeIcon isOpen={showConfirmPassword} />
-                  </button>
-                </div>
-                {!passwordsMatch && (
-                  <p className="field-error">Passwords do not match.</p>
-                )}
-              </>
-            )}
-
-            <div className="form-options">
-              <label className="remember-me" htmlFor="remember-me">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(event) => setRememberMe(event.target.checked)}
-                />
-                Remember me
-              </label>
-              <button type="button" className="forgot-btn">
-                Forgot password?
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              className="submit-btn"
-              disabled={isSubmitting || (isRegister && !passwordsMatch)}
-            >
-              {isSubmitting
-                ? 'Please wait...'
-                : isRegister
-                  ? 'Create Account'
-                  : 'Login'}
-            </button>
-          </form>
-
-          <p className="auth-footer">
-            {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
-            <button
-              type="button"
-              className="text-toggle"
-              onClick={() => setMode(isRegister ? 'login' : 'register')}
-            >
-              {isRegister ? 'Login here' : 'Register now'}
-            </button>
+    <main className={`auth-page ${isAuthenticated ? 'authenticated' : ''}`}>
+      {!isAuthenticated && (
+        <section className="brand-panel" aria-label="Branding section">
+          <h1>Campus Ai portal</h1>
+          <p className="brand-copy">
+            Securely access your classes, attendance, and student dashboard in one
+            clean place.
           </p>
-        </div>
-      </section>
-    </main>
-  )
-}
-
-export default App
+          <div className="brand-stats">
+            <article>
+              <h2>Admin</h2>
+              <p>{ADMIN_EMAIL}</p>
+            </article>
+            <article>
+              <h2>2 Modules</h2>
+              <p>Create Student, Add Faculty</p>
+            </article>
+          </div>
+        </section>
+      )}
+ 
+       <section className="form-panel" aria-label="Authentication form">
+         {!isAuthenticated && (
+           <LoginForm
+             email={email}
+             setEmail={setEmail}
+             password={password}
+             setPassword={setPassword}
+             rememberMe={rememberMe}
+             setRememberMe={setRememberMe}
+             showPassword={showPassword}
+             setShowPassword={setShowPassword}
+             errorMessage={errorMessage}
+             successMessage={successMessage}
+             onForgotPassword={showForgotMessage}
+             onSubmit={handleLogin}
+           />
+         )}
+ 
+         {isAuthenticated && loggedInRole === 'admin' && (
+           <AdminDashboard
+             activeAdminPage={activeAdminPage}
+             setActiveAdminPage={setActiveAdminPage}
+             adminName={loggedInUser?.name}
+             successMessage={successMessage}
+             onLogout={handleLogout}
+             students={students}
+             faculties={faculties}
+             studentForm={{
+               studentName,
+               setStudentName,
+               studentId,
+               setStudentId,
+               studentPassword,
+               setStudentPassword,
+             }}
+             facultyForm={{
+               facultyName,
+               setFacultyName,
+               facultyId,
+               setFacultyId,
+               facultyPassword,
+               setFacultyPassword,
+             }}
+             onCreateStudent={handleCreateStudent}
+             onAddFaculty={handleAddFaculty}
+             onEditUser={handleEditUser}
+             onDeleteUser={handleDeleteUser}
+           />
+         )}
+ 
+         {isAuthenticated && loggedInRole === 'student' && (
+           <StudentDashboard user={loggedInUser} onLogout={handleLogout} />
+         )}
+         {isAuthenticated && loggedInRole === 'faculty' && (
+           <FacultyDashboard user={loggedInUser} onLogout={handleLogout} />
+         )}
+       </section>
+     </main>
+   )
+ }
+ 
+ export default App
