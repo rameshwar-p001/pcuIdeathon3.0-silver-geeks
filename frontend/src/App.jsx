@@ -40,6 +40,18 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      document.body.classList.add('dashboard-mode')
+    } else {
+      document.body.classList.remove('dashboard-mode')
+    }
+
+    return () => {
+      document.body.classList.remove('dashboard-mode')
+    }
+  }, [isAuthenticated])
+
   const handleLogin = (event) => {
     event.preventDefault()
     setErrorMessage('')
@@ -225,16 +237,6 @@ function App() {
             Securely access your classes, attendance, and student dashboard in one
             clean place.
           </p>
-          <div className="brand-stats">
-            <article>
-              <h2>Admin</h2>
-              <p>{ADMIN_EMAIL}</p>
-            </article>
-            <article>
-              <h2>2 Modules</h2>
-              <p>Create Student, Add Faculty</p>
-            </article>
-          </div>
         </section>
       )}
  

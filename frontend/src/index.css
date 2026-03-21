@@ -25,6 +25,16 @@ body {
   align-items: stretch;
 }
 
+body.dashboard-mode {
+  padding: 0;
+}
+
+body.dashboard-mode #root {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+
 h1,
 h2,
 p {

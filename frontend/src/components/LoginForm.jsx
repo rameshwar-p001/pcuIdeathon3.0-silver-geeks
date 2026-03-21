@@ -18,7 +18,6 @@ function LoginForm({
     <div className="auth-card">
       <div className="auth-headline">
         <h2>Campus Login</h2>
-        <p>One login form for admin, student, and faculty users.</p>
       </div>
 
       {errorMessage && (
@@ -82,8 +81,6 @@ function LoginForm({
           Login
         </button>
       </form>
-
-      <p className="login-hint">Students and faculty accounts are created only by admin.</p>
     </div>
   )
 }
