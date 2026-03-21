@@ -21,6 +21,24 @@ router.get('/user/:userId', verifyToken, requireAdmin, async (req, res) => {
       });
     });
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     return res.status(200).json({
       success: true,
       message: 'Attendance records retrieved successfully',

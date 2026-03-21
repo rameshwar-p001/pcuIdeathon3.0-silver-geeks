@@ -12,6 +12,19 @@ export const verifyToken = async (req, res, next) => {
       });
     }
 
+
+
+
+
+
+
+
+
+
+
+
+    
+
     const decodedToken = await auth.verifyIdToken(token);
     req.user = {
       uid: decodedToken.uid,

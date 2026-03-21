@@ -240,16 +240,3 @@ export { db, auth, adminAuth, adminDb, useAdminSdk };
 export default admin;
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
