@@ -39,6 +39,13 @@ function AdminSidebar({ activeAdminPage, setActiveAdminPage, pendingRequestsCoun
       </button>
       <button
         type="button"
+        className={activeAdminPage === 'classTeacher' ? 'active' : ''}
+        onClick={() => setActiveAdminPage('classTeacher')}
+      >
+        Assign Class Teacher
+      </button>
+      <button
+        type="button"
         className={activeAdminPage === 'requests' ? 'active' : ''}
         onClick={() => setActiveAdminPage('requests')}
       >

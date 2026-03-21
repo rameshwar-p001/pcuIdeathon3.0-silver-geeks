@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import attendanceRoutes from './routes/attendance.js';
 import collaborationRoutes from './routes/collaboration.js';
+import facultyRoutes from './routes/faculty.js';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/collaboration', collaborationRoutes);
+app.use('/api/faculty', facultyRoutes);
 
 app.get('/', (req, res) => {
   res.json({
@@ -46,6 +48,9 @@ app.get('/', (req, res) => {
       admin: {
         addStudent: 'POST /api/admin/add-student',
         addFaculty: 'POST /api/admin/add-faculty',
+        listFaculties: 'GET /api/admin/faculties',
+        assignClassTeacher: 'POST /api/admin/assign-class-teacher',
+        assignedClasses: 'GET /api/admin/assigned-classes',
         getUsers: 'GET /api/admin/users',
         getUser: 'GET /api/admin/users/:uid',
         updateUser: 'PUT /api/admin/users/:uid',
@@ -62,6 +67,12 @@ app.get('/', (req, res) => {
         requestToJoin: 'POST /api/collaboration/posts/:postId/request',
         cancelRequest: 'POST /api/collaboration/posts/:postId/request/cancel',
         ownerDecision: 'POST /api/collaboration/posts/:postId/request/:joinerUid/decision'
+      },
+      faculty: {
+        dashboard: 'GET /api/faculty/dashboard',
+        createAssignment: 'POST /api/faculty/assignments',
+        getTimetable: 'GET /api/faculty/timetable?classId=...',
+        updateTimetable: 'PUT /api/faculty/timetable'
       }
     }
   });

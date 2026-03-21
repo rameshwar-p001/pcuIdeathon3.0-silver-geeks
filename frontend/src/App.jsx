@@ -14,6 +14,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  setDoc,
   updateDoc,
 } from 'firebase/firestore'
 import FacultyDashboard from './components/FacultyDashboard'
@@ -21,11 +22,18 @@ import LoginForm from './components/LoginForm'
 import StudentDashboard from './components/StudentDashboard'
 import AdminDashboard from './components/admin/AdminDashboard'
 import { auth, createAuthUserFromAdminSession, db } from './lib/firebase'
+import { apiRequest } from './lib/api'
 import './App.css'
 
 const ADMIN_EMAIL = 'admin@rdp.com'
 const ADMIN_PASSWORD = '123456'
 const SESSION_KEY = 'campusSession'
+const CLASS_OPTIONS = [
+  { id: 'cse-a', label: 'CSE-A' },
+  { id: 'cse-b', label: 'CSE-B' },
+  { id: 'it-a', label: 'IT-A' },
+  { id: 'it-b', label: 'IT-B' },
+]
 
 function toCampusEmail(input) {
   const normalized = input.trim().toLowerCase()
@@ -83,6 +91,7 @@ function App() {
   const [studentName, setStudentName] = useState('')
   const [studentEmail, setStudentEmail] = useState('')
   const [studentEnrollmentNumber, setStudentEnrollmentNumber] = useState('')
+  const [studentClassId, setStudentClassId] = useState('')
   const [studentDepartment, setStudentDepartment] = useState('')
   const [studentSemester, setStudentSemester] = useState('')
   const [studentPhone, setStudentPhone] = useState('')
@@ -97,6 +106,9 @@ function App() {
   const [students, setStudents] = useState([])
   const [faculties, setFaculties] = useState([])
   const [profileChangeRequests, setProfileChangeRequests] = useState([])
+  const [classTeacherAssignments, setClassTeacherAssignments] = useState([])
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [selectedFacultyUid, setSelectedFacultyUid] = useState('')
 
   const persistSession = (role, user, shouldRemember) => {
     const payload = JSON.stringify({ role, user })
@@ -168,6 +180,45 @@ function App() {
     }
 
     loadUsers()
+  }, [isAuthenticated, loggedInRole])
+
+  useEffect(() => {
+    const loadClassTeacherAssignments = async () => {
+      if (!isAuthenticated || loggedInRole !== 'admin') {
+        setClassTeacherAssignments([])
+        return
+      }
+
+      try {
+        if (auth.currentUser) {
+          const response = await apiRequest('/api/admin/assigned-classes')
+          const rows = (response.data || []).map((item) => ({
+            classId: item.class_id || item.classId || item.id,
+            className: item.class_name || item.className || item.class_id || item.classId || item.id,
+            facultyUid: item.faculty_id || item.facultyUid || '',
+            facultyName: item.faculty_name || item.facultyName || '',
+            facultyEmail: item.faculty_email || item.facultyEmail || '',
+            updatedAt: item.updatedAt || '',
+          }))
+
+          setClassTeacherAssignments(rows)
+          return
+        }
+
+        const snapshot = await getDocs(collection(db, 'classTeachers'))
+        const fallbackRows = []
+
+        snapshot.forEach((item) => {
+          fallbackRows.push(item.data())
+        })
+
+        setClassTeacherAssignments(fallbackRows)
+      } catch {
+        setErrorMessage('Unable to load class teacher assignments.')
+      }
+    }
+
+    loadClassTeacherAssignments()
   }, [isAuthenticated, loggedInRole])
 
   useEffect(() => {
@@ -325,6 +376,7 @@ function App() {
     const nextName = studentName.trim()
     const nextEmail = studentEmail.trim().toLowerCase()
     const nextEnrollmentNumber = studentEnrollmentNumber.trim().toLowerCase()
+    const nextClassId = studentClassId.trim()
     const nextDepartment = studentDepartment.trim()
     const nextSemester = studentSemester.trim()
     const nextPhone = studentPhone.trim()
@@ -335,13 +387,20 @@ function App() {
       !nextName ||
       !nextEmail ||
       !nextEnrollmentNumber ||
+      !nextClassId ||
       !nextDepartment ||
       !nextSemester ||
       !nextPassword
     ) {
       setErrorMessage(
-        'Student name, email, enrollment number, department, semester and password are required.',
+        'Student name, email, enrollment number, class, department, semester and password are required.',
       )
+      return
+    }
+
+    const selectedClass = CLASS_OPTIONS.find((item) => item.id === nextClassId)
+    if (!selectedClass) {
+      setErrorMessage('Please choose a valid class for the student.')
       return
     }
 
@@ -369,6 +428,10 @@ function App() {
         id: nextEnrollmentNumber,
         email: nextEmail,
         enrollmentNumber: nextEnrollmentNumber,
+        class_id: selectedClass.id,
+        classId: selectedClass.id,
+        class_name: selectedClass.label,
+        className: selectedClass.label,
         department: nextDepartment,
         semester: semesterNumber,
         phone: nextPhone,
@@ -395,6 +458,7 @@ function App() {
     setStudentName('')
     setStudentEmail('')
     setStudentEnrollmentNumber('')
+    setStudentClassId('')
     setStudentDepartment('')
     setStudentSemester('')
     setStudentPhone('')
@@ -631,6 +695,63 @@ function App() {
     }
   }
 
+  const handleAssignClassTeacher = async (classId, facultyUid) => {
+    setErrorMessage('')
+
+    if (!classId || !facultyUid) {
+      setErrorMessage('Class and faculty are required for assignment.')
+      return
+    }
+
+    const selectedClass = CLASS_OPTIONS.find((item) => item.id === classId)
+    const selectedFaculty = faculties.find((faculty) => faculty.uid === facultyUid)
+
+    if (!selectedClass || !selectedFaculty) {
+      setErrorMessage('Invalid class or faculty selected.')
+      return
+    }
+
+    const assignment = {
+      classId: selectedClass.id,
+      className: selectedClass.label,
+      facultyUid: selectedFaculty.uid,
+      facultyName: selectedFaculty.name,
+      facultyEmail: selectedFaculty.email,
+      updatedAt: new Date().toISOString(),
+    }
+
+    try {
+      if (auth.currentUser) {
+        await apiRequest('/api/admin/assign-class-teacher', {
+          method: 'POST',
+          body: JSON.stringify({
+            class_id: classId,
+            faculty_id: facultyUid,
+          }),
+        })
+      } else {
+        // Keep local-admin mode functional when no Firebase-authenticated admin user exists.
+        await setDoc(doc(db, 'classTeachers', classId), assignment)
+      }
+
+      setClassTeacherAssignments((prev) => {
+        const existingIndex = prev.findIndex((item) => item.classId === classId)
+
+        if (existingIndex === -1) {
+          return [assignment, ...prev]
+        }
+
+        const next = [...prev]
+        next[existingIndex] = assignment
+        return next
+      })
+
+      setSuccessMessage('Class teacher assigned successfully.')
+    } catch {
+      setErrorMessage('Unable to assign class teacher.')
+    }
+  }
+
   const showForgotMessage = () => {
     setSuccessMessage('Please contact admin to reset your credentials.')
     setErrorMessage('')
@@ -682,6 +803,8 @@ function App() {
                setStudentEmail,
                studentEnrollmentNumber,
                setStudentEnrollmentNumber,
+               studentClassId,
+               setStudentClassId,
                studentDepartment,
                setStudentDepartment,
                studentSemester,
@@ -714,6 +837,13 @@ function App() {
              profileChangeRequests={profileChangeRequests}
              onApproveProfileChangeRequest={handleApproveProfileChangeRequest}
              onRejectProfileChangeRequest={handleRejectProfileChangeRequest}
+             classOptions={CLASS_OPTIONS}
+             classTeacherAssignments={classTeacherAssignments}
+             selectedClassId={selectedClassId}
+             setSelectedClassId={setSelectedClassId}
+             selectedFacultyUid={selectedFacultyUid}
+             setSelectedFacultyUid={setSelectedFacultyUid}
+             onAssignClassTeacher={handleAssignClassTeacher}
            />
          )}
  

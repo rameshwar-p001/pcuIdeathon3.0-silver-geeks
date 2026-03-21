@@ -1,5 +1,6 @@
 import AddFacultyForm from './AddFacultyForm'
 import AddStudentForm from './AddStudentForm'
+import AssignClassTeacherPanel from './AssignClassTeacherPanel'
 import AdminSidebar from './AdminSidebar'
 import AdminTopbar from './AdminTopbar'
 import AttendancePanel from './AttendancePanel'
@@ -24,6 +25,13 @@ function AdminDashboard({
   profileChangeRequests,
   onApproveProfileChangeRequest,
   onRejectProfileChangeRequest,
+  classOptions,
+  classTeacherAssignments,
+  selectedClassId,
+  setSelectedClassId,
+  selectedFacultyUid,
+  setSelectedFacultyUid,
+  onAssignClassTeacher,
 }) {
   const users = [
     ...students.map((student) => ({
@@ -69,12 +77,15 @@ function AdminDashboard({
 
         {activeAdminPage === 'student' && (
           <AddStudentForm
+            classOptions={classOptions}
             studentName={studentForm.studentName}
             setStudentName={studentForm.setStudentName}
             studentEmail={studentForm.studentEmail}
             setStudentEmail={studentForm.setStudentEmail}
             studentEnrollmentNumber={studentForm.studentEnrollmentNumber}
             setStudentEnrollmentNumber={studentForm.setStudentEnrollmentNumber}
+            studentClassId={studentForm.studentClassId}
+            setStudentClassId={studentForm.setStudentClassId}
             studentDepartment={studentForm.studentDepartment}
             setStudentDepartment={studentForm.setStudentDepartment}
             studentSemester={studentForm.studentSemester}
@@ -116,6 +127,19 @@ function AdminDashboard({
         )}
 
         {activeAdminPage === 'attendance' && <AttendancePanel />}
+
+        {activeAdminPage === 'classTeacher' && (
+          <AssignClassTeacherPanel
+            classes={classOptions}
+            faculties={faculties}
+            assignments={classTeacherAssignments}
+            selectedClassId={selectedClassId}
+            setSelectedClassId={setSelectedClassId}
+            selectedFacultyUid={selectedFacultyUid}
+            setSelectedFacultyUid={setSelectedFacultyUid}
+            onAssign={onAssignClassTeacher}
+          />
+        )}
 
         {activeAdminPage === 'requests' && (
           <ProfileChangeRequestsPanel

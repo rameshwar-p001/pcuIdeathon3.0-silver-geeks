@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, updateDoc, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
+import AttendanceQRScanner from './AttendanceQRScanner'
 const ERP_MODULES = [
   { name: 'Academic', code: 'AC', type: 'academic', path: '/Academics' },
   { name: 'AI Based Doubt Section', code: 'AI', type: 'doubt', path: '/AIDoubtSection' },
@@ -51,6 +52,8 @@ function StudentDashboard({ user, onLogout }) {
   const [selfieError, setSelfieError] = useState('')
   const [selfieMessage, setSelfieMessage] = useState('')
   const [isUploadingSelfie, setIsUploadingSelfie] = useState(false)
+  const [realtimeAttendanceRows, setRealtimeAttendanceRows] = useState([])
+  const [realtimeTimetableRows, setRealtimeTimetableRows] = useState([])
 
   const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '')
 
@@ -82,34 +85,7 @@ function StudentDashboard({ user, onLogout }) {
         setRequestSemester(profileData.semester ? String(profileData.semester) : '')
         setRequestPhone(profileData.phone || '')
 
-        const attendanceQuery = query(
-          collection(db, 'attendance'),
-          where('userId', '==', user.uid),
-        )
-        const attendanceSnapshot = await getDocs(attendanceQuery)
-
-        let presentCount = 0
-        let totalCount = 0
-
-        attendanceSnapshot.forEach((item) => {
-          const record = item.data()
-          if (!record?.status) {
-            return
-          }
-
-          if (record.status === 'present') {
-            presentCount += 1
-          }
-
-          if (record.status === 'present' || record.status === 'absent' || record.status === 'leave') {
-            totalCount += 1
-          }
-        })
-
-        const calculatedPercentage =
-          totalCount > 0 ? Number(((presentCount / totalCount) * 100).toFixed(2)) : 0
-
-        setAttendancePercentage(calculatedPercentage)
+        setAttendancePercentage(0)
       } catch {
         setLoadError('Unable to load student dashboard details right now.')
       } finally {
@@ -119,6 +95,89 @@ function StudentDashboard({ user, onLogout }) {
 
     loadStudentSummary()
   }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setRealtimeAttendanceRows([])
+      return () => {}
+    }
+
+    const attendanceByStudentQuery = query(collection(db, 'attendance'), where('student_id', '==', user.uid))
+    const attendanceByLegacyUserIdQuery = query(collection(db, 'attendance'), where('userId', '==', user.uid))
+
+    let rowsByStudent = []
+    let rowsByLegacy = []
+
+    const mergeAndSet = () => {
+      const merged = [...rowsByStudent, ...rowsByLegacy]
+      const unique = Array.from(new Map(merged.map((row) => [row.id, row])).values())
+      setRealtimeAttendanceRows(unique)
+    }
+
+    const unsubscribeStudent = onSnapshot(attendanceByStudentQuery, (snapshot) => {
+      rowsByStudent = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+      mergeAndSet()
+    })
+
+    const unsubscribeLegacy = onSnapshot(attendanceByLegacyUserIdQuery, (snapshot) => {
+      rowsByLegacy = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+      mergeAndSet()
+    })
+
+    return () => {
+      unsubscribeStudent()
+      unsubscribeLegacy()
+    }
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!profile) {
+      setRealtimeTimetableRows([])
+      return () => {}
+    }
+
+    const classCandidates = Array.from(new Set([
+      profile.class_id,
+      profile.classId,
+      profile.class_name,
+      profile.className,
+      profile.division,
+      profile.div,
+    ].filter(Boolean)))
+
+    if (classCandidates.length === 0) {
+      setRealtimeTimetableRows([])
+      return () => {}
+    }
+
+    const unsubscribers = []
+    const byClassMap = new Map()
+
+    classCandidates.forEach((candidate) => {
+      const timetableQuery = query(collection(db, 'timetable'), where('class_id', '==', candidate))
+      const unsubscribe = onSnapshot(timetableQuery, (snapshot) => {
+        byClassMap.set(
+          candidate,
+          snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+        )
+        const merged = Array.from(byClassMap.values()).flat()
+        const unique = Array.from(new Map(merged.map((row) => [row.id, row])).values())
+        setRealtimeTimetableRows(unique)
+      })
+      unsubscribers.push(unsubscribe)
+    })
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
+    }
+  }, [
+    profile?.class_id,
+    profile?.classId,
+    profile?.class_name,
+    profile?.className,
+    profile?.division,
+    profile?.div,
+  ])
 
   useEffect(() => {
     return () => {
@@ -162,6 +221,27 @@ function StudentDashboard({ user, onLogout }) {
     return `${attendancePercentage}%`
   }, [attendancePercentage, isLoading])
 
+  useEffect(() => {
+    let presentCount = 0
+    let totalCount = 0
+
+    realtimeAttendanceRows.forEach((record) => {
+      const status = String(record.status || '').toLowerCase()
+      const isQrPresent = Boolean(record.qrVerified)
+
+      if (status === 'present' || isQrPresent) {
+        presentCount += 1
+      }
+
+      if (status === 'present' || status === 'absent' || status === 'leave' || isQrPresent) {
+        totalCount += 1
+      }
+    })
+
+    const calculatedPercentage = totalCount > 0 ? Number(((presentCount / totalCount) * 100).toFixed(2)) : 0
+    setAttendancePercentage(calculatedPercentage)
+  }, [realtimeAttendanceRows])
+
   const moduleCards = useMemo(() => ERP_MODULES, [])
 
   const activeModule = useMemo(
@@ -187,17 +267,46 @@ function StudentDashboard({ user, onLogout }) {
     'Fees Section': 'Open fees module for due amount, payment history, and receipts.',
   }
 
-  const subjectAttendance = [
-    { subject: 'Mathematics', percentage: '86%' },
-    { subject: 'Data Structures', percentage: '78%' },
-    { subject: 'Operating Systems', percentage: '72%' },
-  ]
+  const subjectAttendance = useMemo(() => {
+    const grouped = new Map()
 
-  const todaySchedule = [
-    { subject: 'Data Structures', time: '10:00 AM - 11:00 AM' },
-    { subject: 'Operating Systems', time: '11:15 AM - 12:15 PM' },
-    { subject: 'Database Management', time: '2:00 PM - 3:00 PM' },
-  ]
+    realtimeAttendanceRows.forEach((record) => {
+      const subject = record.subject || 'General'
+      const status = String(record.status || '').toLowerCase()
+      const isPresent = status === 'present' || Boolean(record.qrVerified)
+      const isCounted = status === 'present' || status === 'absent' || status === 'leave' || Boolean(record.qrVerified)
+
+      if (!isCounted) {
+        return
+      }
+
+      const current = grouped.get(subject) || { present: 0, total: 0 }
+      current.total += 1
+      if (isPresent) {
+        current.present += 1
+      }
+      grouped.set(subject, current)
+    })
+
+    return Array.from(grouped.entries()).map(([subject, counts]) => ({
+      subject,
+      percentage: `${counts.total > 0 ? Math.round((counts.present / counts.total) * 100) : 0}%`,
+    }))
+  }, [realtimeAttendanceRows])
+
+  const todaySchedule = useMemo(() => {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const today = dayNames[new Date().getDay()]
+    const normalizeDay = (value) => String(value || '').trim().slice(0, 3).toLowerCase()
+
+    return realtimeTimetableRows
+      .filter((row) => normalizeDay(row.day) === today.toLowerCase())
+      .map((row) => ({
+        subject: row.subject || 'N/A',
+        time: row.time_slot || 'N/A',
+      }))
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)))
+  }, [realtimeTimetableRows])
 
   const assignmentItems = [
     { title: 'DBMS Normalization Sheet', deadline: '25 Mar 2026' },
@@ -691,9 +800,16 @@ function StudentDashboard({ user, onLogout }) {
             onClick={() => setActiveView('profile')}
           >
             Profile
+
+          </button>
+          <button
+            type="button"
+            className={activeView === 'attendance' ? 'active' : ''}
+            onClick={() => setActiveView('attendance')}
+          >
+            Mark Attendance
           </button>
         </nav>
-
         <div className="topbar-actions">
           <div className="student-avatar" title={studentName}>
             {profile?.selfieUrl ? (
@@ -969,10 +1085,9 @@ function StudentDashboard({ user, onLogout }) {
                         </button>
                       </form>
                     </article>
-
                     <article className="module-detail-card module-detail-card-wide">
                       <div className="module-detail-head">
-                        <span className="module-icon-chip">LS</span>
+                        <span className="module-icon-chip">CB</span>
                         <h4>All Collaboration Posts</h4>
                       </div>
 
@@ -1130,6 +1245,8 @@ function StudentDashboard({ user, onLogout }) {
           )}
         </>
       )}
+
+      {activeView === 'attendance' && <AttendanceQRScanner user={user} />}
 
       {activeView === 'profile' && (
         <section className="admin-panel-card student-profile-panel">

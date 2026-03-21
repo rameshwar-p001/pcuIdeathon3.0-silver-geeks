@@ -153,6 +153,123 @@ router.post('/add-faculty', requireAdminSdk, verifyToken, requireAdmin, async (r
   }
 });
 
+// Get faculty list - Admin only
+router.get('/faculties', requireAdminSdk, verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const facultiesSnapshot = await db.collection('users').where('role', '==', 'faculty').get();
+    const faculties = [];
+
+    facultiesSnapshot.forEach((facultyDoc) => {
+      const data = facultyDoc.data();
+      faculties.push({
+        uid: data.uid,
+        name: data.name,
+        email: data.email,
+        facultyId: data.facultyId || '',
+        department: data.department || '',
+        subject: data.subject || '',
+        phone: data.phone || ''
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Faculty list retrieved successfully',
+      data: faculties,
+      total: faculties.length
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve faculty list',
+      error: error.message
+    });
+  }
+});
+
+// Assign class teacher - Admin only
+router.post('/assign-class-teacher', requireAdminSdk, verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const { class_id: classId, faculty_id: facultyId } = req.body;
+
+    if (!classId || !facultyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'class_id and faculty_id are required'
+      });
+    }
+
+    const facultyDoc = await db.collection('users').doc(facultyId).get();
+
+    if (!facultyDoc.exists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty not found'
+      });
+    }
+
+    const facultyData = facultyDoc.data();
+
+    if (facultyData.role !== 'faculty') {
+      return res.status(400).json({
+        success: false,
+        message: 'Provided faculty_id does not belong to a faculty user'
+      });
+    }
+
+    const assignment = {
+      class_id: classId,
+      faculty_id: facultyId,
+      faculty_name: facultyData.name,
+      faculty_email: facultyData.email,
+      updatedAt: new Date(),
+      updatedBy: req.user.uid
+    };
+
+    await db.collection('class_teachers').doc(classId).set(assignment);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Class teacher assigned successfully',
+      data: assignment
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to assign class teacher',
+      error: error.message
+    });
+  }
+});
+
+// Get assigned classes - Admin only
+router.get('/assigned-classes', requireAdminSdk, verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const assignedSnapshot = await db.collection('class_teachers').get();
+    const rows = [];
+
+    assignedSnapshot.forEach((docSnapshot) => {
+      rows.push({
+        id: docSnapshot.id,
+        ...docSnapshot.data()
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assigned classes retrieved successfully',
+      data: rows,
+      total: rows.length
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve assigned classes',
+      error: error.message
+    });
+  }
+});
+
 // Get all users - Admin only
 router.get('/users', requireAdminSdk, verifyToken, requireAdmin, async (req, res) => {
   try {

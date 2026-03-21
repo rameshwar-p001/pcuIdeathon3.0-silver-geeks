@@ -1,10 +1,13 @@
 function AddStudentForm({
+  classOptions,
   studentName,
   setStudentName,
   studentEmail,
   setStudentEmail,
   studentEnrollmentNumber,
   setStudentEnrollmentNumber,
+  studentClassId,
+  setStudentClassId,
   studentDepartment,
   setStudentDepartment,
   studentSemester,
@@ -48,6 +51,21 @@ function AddStudentForm({
           placeholder="Enter enrollment number"
           required
         />
+
+        <label htmlFor="student-class">Class</label>
+        <select
+          id="student-class"
+          value={studentClassId}
+          onChange={(event) => setStudentClassId(event.target.value)}
+          required
+        >
+          <option value="">Choose class</option>
+          {classOptions.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
+            </option>
+          ))}
+        </select>
 
         <label htmlFor="student-department">Department</label>
         <input
