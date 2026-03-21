@@ -25,6 +25,27 @@ function AdminSidebar({ activeAdminPage, setActiveAdminPage, pendingRequestsCoun
       </button>
       <button
         type="button"
+        className={activeAdminPage === 'campusIncharge' ? 'active' : ''}
+        onClick={() => setActiveAdminPage('campusIncharge')}
+      >
+        Add Campus Incharge
+      </button>
+      <button
+        type="button"
+        className={activeAdminPage === 'placementCell' ? 'active' : ''}
+        onClick={() => setActiveAdminPage('placementCell')}
+      >
+        Add Placement Cell
+      </button>
+      <button
+        type="button"
+        className={activeAdminPage === 'examCoordinator' ? 'active' : ''}
+        onClick={() => setActiveAdminPage('examCoordinator')}
+      >
+        Add Exam Coordinator
+      </button>
+      <button
+        type="button"
         className={activeAdminPage === 'users' ? 'active' : ''}
         onClick={() => setActiveAdminPage('users')}
       >
@@ -43,6 +64,13 @@ function AdminSidebar({ activeAdminPage, setActiveAdminPage, pendingRequestsCoun
         onClick={() => setActiveAdminPage('classTeacher')}
       >
         Assign Class Teacher
+      </button>
+      <button
+        type="button"
+        className={activeAdminPage === 'studentDivision' ? 'active' : ''}
+        onClick={() => setActiveAdminPage('studentDivision')}
+      >
+        Assign Division
       </button>
       <button
         type="button"

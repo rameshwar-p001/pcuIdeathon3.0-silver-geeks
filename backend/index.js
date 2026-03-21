@@ -6,6 +6,7 @@ import adminRoutes from './routes/admin.js';
 import attendanceRoutes from './routes/attendance.js';
 import collaborationRoutes from './routes/collaboration.js';
 import facultyRoutes from './routes/faculty.js';
+import aiRoutes from './routes/ai.js';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/faculty', facultyRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.get('/', (req, res) => {
   res.json({
@@ -73,6 +75,9 @@ app.get('/', (req, res) => {
         createAssignment: 'POST /api/faculty/assignments',
         getTimetable: 'GET /api/faculty/timetable?classId=...',
         updateTimetable: 'PUT /api/faculty/timetable'
+      },
+      ai: {
+        askDoubt: 'POST /api/ai/doubt'
       }
     }
   });

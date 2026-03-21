@@ -8,7 +8,8 @@ function AssignClassTeacherPanel({
   setSelectedFacultyUid,
   onAssign,
 }) {
-  const selectedClass = classes.find((item) => item.id === selectedClassId)
+  const normalizeClassId = (value) => String(value || '').trim().toLowerCase()
+  const selectedClass = classes.find((item) => normalizeClassId(item.id) === normalizeClassId(selectedClassId))
 
   return (
     <div className="admin-panel-card">
@@ -51,7 +52,9 @@ function AssignClassTeacherPanel({
         </select>
 
         <button type="submit" className="submit-btn" disabled={!faculties.length}>
-          {selectedClass && assignments.some((item) => item.classId === selectedClass.id)
+          {selectedClass && assignments.some(
+            (item) => normalizeClassId(item.classId || item.class_id || item.id) === normalizeClassId(selectedClass.id),
+          )
             ? 'Change Teacher'
             : 'Assign Teacher'}
         </button>
@@ -68,7 +71,9 @@ function AssignClassTeacherPanel({
           </thead>
           <tbody>
             {classes.map((item) => {
-              const assigned = assignments.find((row) => row.classId === item.id)
+              const assigned = assignments.find(
+                (row) => normalizeClassId(row.classId || row.class_id || row.id) === normalizeClassId(item.id),
+              )
 
               return (
                 <tr key={item.id}>

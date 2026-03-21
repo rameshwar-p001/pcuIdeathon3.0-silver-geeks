@@ -20,6 +20,9 @@ import {
 import FacultyDashboard from './components/FacultyDashboard'
 import LoginForm from './components/LoginForm'
 import StudentDashboard from './components/StudentDashboard'
+import CampusInchargeDashboard from './components/CampusInchargeDashboard'
+import PlacementCellDashboard from './components/PlacementCellDashboard'
+import ExamCoordinatorDashboard from './components/ExamCoordinatorDashboard'
 import AdminDashboard from './components/admin/AdminDashboard'
 import { auth, createAuthUserFromAdminSession, db } from './lib/firebase'
 import { apiRequest } from './lib/api'
@@ -34,6 +37,16 @@ const CLASS_OPTIONS = [
   { id: 'it-a', label: 'IT-A' },
   { id: 'it-b', label: 'IT-B' },
 ]
+
+function normalizeClassId(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function getClassLabelFromId(classId) {
+  const normalized = normalizeClassId(classId)
+  const option = CLASS_OPTIONS.find((item) => normalizeClassId(item.id) === normalized)
+  return option?.label || normalized.toUpperCase()
+}
 
 function toCampusEmail(input) {
   const normalized = input.trim().toLowerCase()
@@ -103,8 +116,29 @@ function App() {
   const [facultySubject, setFacultySubject] = useState('')
   const [facultyPhone, setFacultyPhone] = useState('')
   const [facultyPassword, setFacultyPassword] = useState('')
+  const [inchargeName, setInchargeName] = useState('')
+  const [inchargeEmail, setInchargeEmail] = useState('')
+  const [inchargeId, setInchargeId] = useState('')
+  const [inchargeDepartment, setInchargeDepartment] = useState('')
+  const [inchargePhone, setInchargePhone] = useState('')
+  const [inchargePassword, setInchargePassword] = useState('')
+  const [placementName, setPlacementName] = useState('')
+  const [placementEmail, setPlacementEmail] = useState('')
+  const [placementId, setPlacementId] = useState('')
+  const [placementDepartment, setPlacementDepartment] = useState('')
+  const [placementPhone, setPlacementPhone] = useState('')
+  const [placementPassword, setPlacementPassword] = useState('')
+  const [examCoordinatorName, setExamCoordinatorName] = useState('')
+  const [examCoordinatorEmail, setExamCoordinatorEmail] = useState('')
+  const [examCoordinatorId, setExamCoordinatorId] = useState('')
+  const [examCoordinatorDepartment, setExamCoordinatorDepartment] = useState('')
+  const [examCoordinatorPhone, setExamCoordinatorPhone] = useState('')
+  const [examCoordinatorPassword, setExamCoordinatorPassword] = useState('')
   const [students, setStudents] = useState([])
   const [faculties, setFaculties] = useState([])
+  const [campusIncharges, setCampusIncharges] = useState([])
+  const [placementCells, setPlacementCells] = useState([])
+  const [examCoordinators, setExamCoordinators] = useState([])
   const [profileChangeRequests, setProfileChangeRequests] = useState([])
   const [classTeacherAssignments, setClassTeacherAssignments] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('')
@@ -130,7 +164,7 @@ function App() {
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession)
-        const validRoles = ['admin', 'student', 'faculty']
+        const validRoles = ['admin', 'student', 'faculty', 'campusIncharge', 'placementCell', 'examCoordinator']
 
         if (!validRoles.includes(parsed?.role) || !parsed?.user) {
           localStorage.removeItem(SESSION_KEY)
@@ -159,6 +193,9 @@ function App() {
         const snapshot = await getDocs(collection(db, 'users'))
         const nextStudents = []
         const nextFaculties = []
+        const nextIncharges = []
+        const nextPlacementCells = []
+        const nextExamCoordinators = []
 
         snapshot.forEach((item) => {
           const user = item.data()
@@ -170,10 +207,25 @@ function App() {
           if (user.role === 'faculty') {
             nextFaculties.push(user)
           }
+
+          if (user.role === 'campusIncharge') {
+            nextIncharges.push(user)
+          }
+
+          if (user.role === 'placementCell') {
+            nextPlacementCells.push(user)
+          }
+
+          if (user.role === 'examCoordinator') {
+            nextExamCoordinators.push(user)
+          }
         })
 
         setStudents(nextStudents)
         setFaculties(nextFaculties)
+        setCampusIncharges(nextIncharges)
+        setPlacementCells(nextPlacementCells)
+        setExamCoordinators(nextExamCoordinators)
       } catch {
         setErrorMessage('Unable to load users from Firestore.')
       }
@@ -193,8 +245,8 @@ function App() {
         if (auth.currentUser) {
           const response = await apiRequest('/api/admin/assigned-classes')
           const rows = (response.data || []).map((item) => ({
-            classId: item.class_id || item.classId || item.id,
-            className: item.class_name || item.className || item.class_id || item.classId || item.id,
+            classId: normalizeClassId(item.class_id || item.classId || item.id),
+            className: getClassLabelFromId(item.class_id || item.classId || item.id),
             facultyUid: item.faculty_id || item.facultyUid || '',
             facultyName: item.faculty_name || item.facultyName || '',
             facultyEmail: item.faculty_email || item.facultyEmail || '',
@@ -209,7 +261,14 @@ function App() {
         const fallbackRows = []
 
         snapshot.forEach((item) => {
-          fallbackRows.push(item.data())
+          const data = item.data()
+          fallbackRows.push({
+            ...data,
+            classId: normalizeClassId(data.classId || data.class_id || item.id),
+            class_id: normalizeClassId(data.classId || data.class_id || item.id),
+            className: data.className || data.class_name || getClassLabelFromId(data.classId || data.class_id || item.id),
+            class_name: data.class_name || data.className || getClassLabelFromId(data.classId || data.class_id || item.id),
+          })
         })
 
         setClassTeacherAssignments(fallbackRows)
@@ -325,7 +384,7 @@ function App() {
       const profile = snapshot.data()
       const role = profile.role
 
-      if (role !== 'student' && role !== 'faculty') {
+      if (role !== 'student' && role !== 'faculty' && role !== 'campusIncharge' && role !== 'placementCell' && role !== 'examCoordinator') {
         await signOut(auth)
         setErrorMessage('Invalid account role. Contact admin.')
         return
@@ -376,7 +435,7 @@ function App() {
     const nextName = studentName.trim()
     const nextEmail = studentEmail.trim().toLowerCase()
     const nextEnrollmentNumber = studentEnrollmentNumber.trim().toLowerCase()
-    const nextClassId = studentClassId.trim()
+    const nextClassId = normalizeClassId(studentClassId)
     const nextDepartment = studentDepartment.trim()
     const nextSemester = studentSemester.trim()
     const nextPhone = studentPhone.trim()
@@ -398,7 +457,7 @@ function App() {
       return
     }
 
-    const selectedClass = CLASS_OPTIONS.find((item) => item.id === nextClassId)
+    const selectedClass = CLASS_OPTIONS.find((item) => normalizeClassId(item.id) === nextClassId)
     if (!selectedClass) {
       setErrorMessage('Please choose a valid class for the student.')
       return
@@ -415,7 +474,9 @@ function App() {
           student.enrollmentNumber === nextEnrollmentNumber ||
           student.email?.toLowerCase() === nextEmail,
       ) ||
-      faculties.some((faculty) => faculty.email?.toLowerCase() === nextEmail)
+      faculties.some((faculty) => faculty.email?.toLowerCase() === nextEmail) ||
+      campusIncharges.some((incharge) => incharge.email?.toLowerCase() === nextEmail) ||
+      placementCells.some((placementCell) => placementCell.email?.toLowerCase() === nextEmail)
     ) {
       setErrorMessage('Student email or enrollment number already exists.')
       return
@@ -495,7 +556,10 @@ function App() {
           faculty.facultyId === nextFacultyId ||
           faculty.email?.toLowerCase() === nextEmail,
       ) ||
-      students.some((student) => student.email?.toLowerCase() === nextEmail)
+      students.some((student) => student.email?.toLowerCase() === nextEmail) ||
+      campusIncharges.some((incharge) => incharge.email?.toLowerCase() === nextEmail) ||
+      placementCells.some((placementCell) => placementCell.email?.toLowerCase() === nextEmail) ||
+      examCoordinators.some((coordinator) => coordinator.email?.toLowerCase() === nextEmail)
     ) {
       setErrorMessage('Faculty email or faculty ID already exists.')
       return
@@ -537,8 +601,207 @@ function App() {
     setFacultyPassword('')
   }
 
+  const handleAddCampusIncharge = async (event) => {
+    event.preventDefault()
+    setErrorMessage('')
+
+    const nextName = inchargeName.trim()
+    const nextEmail = inchargeEmail.trim().toLowerCase()
+    const nextInchargeId = inchargeId.trim().toLowerCase()
+    const nextDepartment = inchargeDepartment.trim()
+    const nextPhone = inchargePhone.trim()
+    const nextPassword = inchargePassword.trim()
+
+    if (!nextName || !nextEmail || !nextInchargeId || !nextDepartment || !nextPassword) {
+      setErrorMessage('Incharge name, email, incharge ID, department and password are required.')
+      return
+    }
+
+    if (!isValidCampusIdentifier(nextInchargeId)) {
+      setErrorMessage('Invalid campus incharge ID format. Avoid spaces and special symbols.')
+      return
+    }
+
+    if (
+      campusIncharges.some(
+        (item) => item.inchargeId === nextInchargeId || item.email?.toLowerCase() === nextEmail,
+      ) ||
+      faculties.some((faculty) => faculty.email?.toLowerCase() === nextEmail) ||
+      students.some((student) => student.email?.toLowerCase() === nextEmail) ||
+      placementCells.some((placementCell) => placementCell.email?.toLowerCase() === nextEmail) ||
+      examCoordinators.some((coordinator) => coordinator.email?.toLowerCase() === nextEmail)
+    ) {
+      setErrorMessage('Campus incharge email or incharge ID already exists.')
+      return
+    }
+
+    try {
+      const profile = {
+        role: 'campusIncharge',
+        name: nextName,
+        id: nextInchargeId,
+        inchargeId: nextInchargeId,
+        email: nextEmail,
+        department: nextDepartment,
+        phone: nextPhone,
+        createdAt: new Date().toISOString(),
+      }
+
+      const createdUser = await createAuthUserFromAdminSession(
+        nextEmail,
+        nextPassword,
+        profile,
+      )
+
+      setCampusIncharges((prev) => [{ ...profile, uid: createdUser.uid }, ...prev])
+      setSuccessMessage(`Campus incharge ${nextName} added.`)
+    } catch (error) {
+      setErrorMessage(getFriendlyAuthError(error))
+      return
+    }
+
+    setInchargeName('')
+    setInchargeEmail('')
+    setInchargeId('')
+    setInchargeDepartment('')
+    setInchargePhone('')
+    setInchargePassword('')
+  }
+
+  const handleAddPlacementCell = async (event) => {
+    event.preventDefault()
+    setErrorMessage('')
+
+    const nextName = placementName.trim()
+    const nextEmail = placementEmail.trim().toLowerCase()
+    const nextPlacementId = placementId.trim().toLowerCase()
+    const nextDepartment = placementDepartment.trim()
+    const nextPhone = placementPhone.trim()
+    const nextPassword = placementPassword.trim()
+
+    if (!nextName || !nextEmail || !nextPlacementId || !nextDepartment || !nextPassword) {
+      setErrorMessage('Placement cell name, email, placement ID, department and password are required.')
+      return
+    }
+
+    if (!isValidCampusIdentifier(nextPlacementId)) {
+      setErrorMessage('Invalid placement cell ID format. Avoid spaces and special symbols.')
+      return
+    }
+
+    if (
+      placementCells.some(
+        (item) => item.placementId === nextPlacementId || item.email?.toLowerCase() === nextEmail,
+      ) ||
+      faculties.some((faculty) => faculty.email?.toLowerCase() === nextEmail) ||
+      students.some((student) => student.email?.toLowerCase() === nextEmail) ||
+      campusIncharges.some((item) => item.email?.toLowerCase() === nextEmail) ||
+      examCoordinators.some((coordinator) => coordinator.email?.toLowerCase() === nextEmail)
+    ) {
+      setErrorMessage('Placement cell email or placement ID already exists.')
+      return
+    }
+
+    try {
+      const profile = {
+        role: 'placementCell',
+        name: nextName,
+        id: nextPlacementId,
+        placementId: nextPlacementId,
+        email: nextEmail,
+        department: nextDepartment,
+        phone: nextPhone,
+        createdAt: new Date().toISOString(),
+      }
+
+      const createdUser = await createAuthUserFromAdminSession(nextEmail, nextPassword, profile)
+      setPlacementCells((prev) => [{ ...profile, uid: createdUser.uid }, ...prev])
+      setSuccessMessage(`Placement cell ${nextName} added.`)
+    } catch (error) {
+      setErrorMessage(getFriendlyAuthError(error))
+      return
+    }
+
+    setPlacementName('')
+    setPlacementEmail('')
+    setPlacementId('')
+    setPlacementDepartment('')
+    setPlacementPhone('')
+    setPlacementPassword('')
+  }
+
+  const handleAddExamCoordinator = async (event) => {
+    event.preventDefault()
+    setErrorMessage('')
+
+    const nextName = examCoordinatorName.trim()
+    const nextEmail = examCoordinatorEmail.trim().toLowerCase()
+    const nextCoordinatorId = examCoordinatorId.trim().toLowerCase()
+    const nextDepartment = examCoordinatorDepartment.trim()
+    const nextPhone = examCoordinatorPhone.trim()
+    const nextPassword = examCoordinatorPassword.trim()
+
+    if (!nextName || !nextEmail || !nextCoordinatorId || !nextDepartment || !nextPassword) {
+      setErrorMessage('Exam coordinator name, email, coordinator ID, department and password are required.')
+      return
+    }
+
+    if (!isValidCampusIdentifier(nextCoordinatorId)) {
+      setErrorMessage('Invalid exam coordinator ID format. Avoid spaces and special symbols.')
+      return
+    }
+
+    if (
+      examCoordinators.some(
+        (item) => item.examCoordinatorId === nextCoordinatorId || item.email?.toLowerCase() === nextEmail,
+      ) ||
+      faculties.some((faculty) => faculty.email?.toLowerCase() === nextEmail) ||
+      students.some((student) => student.email?.toLowerCase() === nextEmail) ||
+      campusIncharges.some((item) => item.email?.toLowerCase() === nextEmail) ||
+      placementCells.some((item) => item.email?.toLowerCase() === nextEmail)
+    ) {
+      setErrorMessage('Exam coordinator email or coordinator ID already exists.')
+      return
+    }
+
+    try {
+      const profile = {
+        role: 'examCoordinator',
+        name: nextName,
+        id: nextCoordinatorId,
+        examCoordinatorId: nextCoordinatorId,
+        email: nextEmail,
+        department: nextDepartment,
+        phone: nextPhone,
+        createdAt: new Date().toISOString(),
+      }
+
+      const createdUser = await createAuthUserFromAdminSession(nextEmail, nextPassword, profile)
+      setExamCoordinators((prev) => [{ ...profile, uid: createdUser.uid }, ...prev])
+      setSuccessMessage(`Exam coordinator ${nextName} added.`)
+    } catch (error) {
+      setErrorMessage(getFriendlyAuthError(error))
+      return
+    }
+
+    setExamCoordinatorName('')
+    setExamCoordinatorEmail('')
+    setExamCoordinatorId('')
+    setExamCoordinatorDepartment('')
+    setExamCoordinatorPhone('')
+    setExamCoordinatorPassword('')
+  }
+
   const handleDeleteUser = async (role, id) => {
-    const source = role === 'Student' ? students : faculties
+    const source = role === 'Student'
+      ? students
+      : role === 'Faculty'
+        ? faculties
+        : role === 'Campus Incharge'
+          ? campusIncharges
+            : role === 'Placement Cell'
+              ? placementCells
+              : examCoordinators
     const user = source.find((item) => item.id === id)
 
     if (!user?.uid) {
@@ -555,8 +818,14 @@ function App() {
 
     if (role === 'Student') {
       setStudents((prev) => prev.filter((student) => student.id !== id))
-    } else {
+    } else if (role === 'Faculty') {
       setFaculties((prev) => prev.filter((faculty) => faculty.id !== id))
+    } else if (role === 'Campus Incharge') {
+      setCampusIncharges((prev) => prev.filter((incharge) => incharge.id !== id))
+    } else if (role === 'Placement Cell') {
+      setPlacementCells((prev) => prev.filter((placementCell) => placementCell.id !== id))
+    } else {
+      setExamCoordinators((prev) => prev.filter((coordinator) => coordinator.id !== id))
     }
 
     setSuccessMessage(`${role} user deleted.`)
@@ -592,6 +861,102 @@ function App() {
         ),
       )
       setSuccessMessage('Student updated.')
+      return
+    }
+
+    if (role === 'Campus Incharge') {
+      const targetIncharge = campusIncharges.find((incharge) => incharge.id === id)
+      if (!targetIncharge) {
+        return
+      }
+
+      const updatedName = window.prompt('Update name', targetIncharge.name)
+      if (!updatedName) {
+        return
+      }
+
+      const nextName = updatedName.trim()
+      if (!nextName) {
+        return
+      }
+
+      try {
+        await updateDoc(doc(db, 'users', targetIncharge.uid), { name: nextName })
+      } catch {
+        setErrorMessage('Unable to update campus incharge in Firestore.')
+        return
+      }
+
+      setCampusIncharges((prev) =>
+        prev.map((incharge) =>
+          incharge.id === id ? { ...incharge, name: nextName } : incharge,
+        ),
+      )
+      setSuccessMessage('Campus incharge updated.')
+      return
+    }
+
+    if (role === 'Placement Cell') {
+      const targetPlacementCell = placementCells.find((placementCell) => placementCell.id === id)
+      if (!targetPlacementCell) {
+        return
+      }
+
+      const updatedName = window.prompt('Update name', targetPlacementCell.name)
+      if (!updatedName) {
+        return
+      }
+
+      const nextName = updatedName.trim()
+      if (!nextName) {
+        return
+      }
+
+      try {
+        await updateDoc(doc(db, 'users', targetPlacementCell.uid), { name: nextName })
+      } catch {
+        setErrorMessage('Unable to update placement cell user in Firestore.')
+        return
+      }
+
+      setPlacementCells((prev) =>
+        prev.map((placementCell) =>
+          placementCell.id === id ? { ...placementCell, name: nextName } : placementCell,
+        ),
+      )
+      setSuccessMessage('Placement cell user updated.')
+      return
+    }
+
+    if (role === 'Exam Coordinator') {
+      const targetExamCoordinator = examCoordinators.find((coordinator) => coordinator.id === id)
+      if (!targetExamCoordinator) {
+        return
+      }
+
+      const updatedName = window.prompt('Update name', targetExamCoordinator.name)
+      if (!updatedName) {
+        return
+      }
+
+      const nextName = updatedName.trim()
+      if (!nextName) {
+        return
+      }
+
+      try {
+        await updateDoc(doc(db, 'users', targetExamCoordinator.uid), { name: nextName })
+      } catch {
+        setErrorMessage('Unable to update exam coordinator user in Firestore.')
+        return
+      }
+
+      setExamCoordinators((prev) =>
+        prev.map((coordinator) =>
+          coordinator.id === id ? { ...coordinator, name: nextName } : coordinator,
+        ),
+      )
+      setSuccessMessage('Exam coordinator user updated.')
       return
     }
 
@@ -697,13 +1062,14 @@ function App() {
 
   const handleAssignClassTeacher = async (classId, facultyUid) => {
     setErrorMessage('')
+    const normalizedClassId = normalizeClassId(classId)
 
-    if (!classId || !facultyUid) {
+    if (!normalizedClassId || !facultyUid) {
       setErrorMessage('Class and faculty are required for assignment.')
       return
     }
 
-    const selectedClass = CLASS_OPTIONS.find((item) => item.id === classId)
+    const selectedClass = CLASS_OPTIONS.find((item) => normalizeClassId(item.id) === normalizedClassId)
     const selectedFaculty = faculties.find((faculty) => faculty.uid === facultyUid)
 
     if (!selectedClass || !selectedFaculty) {
@@ -713,7 +1079,9 @@ function App() {
 
     const assignment = {
       classId: selectedClass.id,
+      class_id: selectedClass.id,
       className: selectedClass.label,
+      class_name: selectedClass.label,
       facultyUid: selectedFaculty.uid,
       facultyName: selectedFaculty.name,
       facultyEmail: selectedFaculty.email,
@@ -725,17 +1093,19 @@ function App() {
         await apiRequest('/api/admin/assign-class-teacher', {
           method: 'POST',
           body: JSON.stringify({
-            class_id: classId,
+            class_id: normalizedClassId,
             faculty_id: facultyUid,
           }),
         })
       } else {
         // Keep local-admin mode functional when no Firebase-authenticated admin user exists.
-        await setDoc(doc(db, 'classTeachers', classId), assignment)
+        await setDoc(doc(db, 'classTeachers', normalizedClassId), assignment)
       }
 
       setClassTeacherAssignments((prev) => {
-        const existingIndex = prev.findIndex((item) => item.classId === classId)
+        const existingIndex = prev.findIndex(
+          (item) => normalizeClassId(item.classId || item.class_id || item.id) === normalizedClassId,
+        )
 
         if (existingIndex === -1) {
           return [assignment, ...prev]
@@ -749,6 +1119,52 @@ function App() {
       setSuccessMessage('Class teacher assigned successfully.')
     } catch {
       setErrorMessage('Unable to assign class teacher.')
+    }
+  }
+
+  const handleAssignStudentDivision = async (studentId, classId) => {
+    setErrorMessage('')
+    const normalizedClassId = normalizeClassId(classId)
+
+    if (!studentId || !normalizedClassId) {
+      setErrorMessage('Student and class are required for division assignment.')
+      return
+    }
+
+    const selectedStudent = students.find((student) => (student.uid || student.id) === studentId)
+    const selectedClass = CLASS_OPTIONS.find((item) => normalizeClassId(item.id) === normalizedClassId)
+
+    if (!selectedStudent || !selectedClass) {
+      setErrorMessage('Invalid student or class selected.')
+      return
+    }
+
+    try {
+      const studentUid = selectedStudent.uid || selectedStudent.id
+      await updateDoc(doc(db, 'users', studentUid), {
+        classId: normalizedClassId,
+        class_id: normalizedClassId,
+        className: selectedClass.label,
+        class_name: selectedClass.label,
+      })
+
+      setStudents((prev) =>
+        prev.map((student) =>
+          (student.uid || student.id) === studentId
+            ? {
+                ...student,
+                classId: normalizedClassId,
+                class_id: normalizedClassId,
+                className: selectedClass.label,
+                class_name: selectedClass.label,
+              }
+            : student
+        )
+      )
+
+      setSuccessMessage(`${selectedStudent.name} assigned to ${selectedClass.label} successfully.`)
+    } catch {
+      setErrorMessage('Unable to assign student division.')
     }
   }
 
@@ -793,9 +1209,13 @@ function App() {
              setActiveAdminPage={setActiveAdminPage}
              adminName={loggedInUser?.name}
              successMessage={successMessage}
+             errorMessage={errorMessage}
              onLogout={handleLogout}
              students={students}
              faculties={faculties}
+             campusIncharges={campusIncharges}
+             placementCells={placementCells}
+             examCoordinators={examCoordinators}
              studentForm={{
                studentName,
                setStudentName,
@@ -830,8 +1250,53 @@ function App() {
                facultyPassword,
                setFacultyPassword,
              }}
+             campusInchargeForm={{
+               inchargeName,
+               setInchargeName,
+               inchargeEmail,
+               setInchargeEmail,
+               inchargeId,
+               setInchargeId,
+               inchargeDepartment,
+               setInchargeDepartment,
+               inchargePhone,
+               setInchargePhone,
+               inchargePassword,
+               setInchargePassword,
+             }}
+             placementCellForm={{
+               placementName,
+               setPlacementName,
+               placementEmail,
+               setPlacementEmail,
+               placementId,
+               setPlacementId,
+               placementDepartment,
+               setPlacementDepartment,
+               placementPhone,
+               setPlacementPhone,
+               placementPassword,
+               setPlacementPassword,
+             }}
+             examCoordinatorForm={{
+               examCoordinatorName,
+               setExamCoordinatorName,
+               examCoordinatorEmail,
+               setExamCoordinatorEmail,
+               examCoordinatorId,
+               setExamCoordinatorId,
+               examCoordinatorDepartment,
+               setExamCoordinatorDepartment,
+               examCoordinatorPhone,
+               setExamCoordinatorPhone,
+               examCoordinatorPassword,
+               setExamCoordinatorPassword,
+             }}
              onCreateStudent={handleCreateStudent}
              onAddFaculty={handleAddFaculty}
+             onAddCampusIncharge={handleAddCampusIncharge}
+             onAddPlacementCell={handleAddPlacementCell}
+             onAddExamCoordinator={handleAddExamCoordinator}
              onEditUser={handleEditUser}
              onDeleteUser={handleDeleteUser}
              profileChangeRequests={profileChangeRequests}
@@ -844,6 +1309,7 @@ function App() {
              selectedFacultyUid={selectedFacultyUid}
              setSelectedFacultyUid={setSelectedFacultyUid}
              onAssignClassTeacher={handleAssignClassTeacher}
+             onAssignStudentDivision={handleAssignStudentDivision}
            />
          )}
  
@@ -852,6 +1318,15 @@ function App() {
          )}
          {isAuthenticated && loggedInRole === 'faculty' && (
            <FacultyDashboard user={loggedInUser} onLogout={handleLogout} />
+         )}
+         {isAuthenticated && loggedInRole === 'campusIncharge' && (
+           <CampusInchargeDashboard user={loggedInUser} onLogout={handleLogout} />
+         )}
+         {isAuthenticated && loggedInRole === 'placementCell' && (
+           <PlacementCellDashboard user={loggedInUser} onLogout={handleLogout} />
+         )}
+         {isAuthenticated && loggedInRole === 'examCoordinator' && (
+           <ExamCoordinatorDashboard user={loggedInUser} onLogout={handleLogout} />
          )}
        </section>
      </main>

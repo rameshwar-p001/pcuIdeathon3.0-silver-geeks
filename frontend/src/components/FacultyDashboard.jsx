@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore'
 
 import { apiRequest } from '../lib/api'
+import { db } from '../lib/firebase'
 import QRCodeGenerator from './QRCodeGenerator'
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const TIME_SLOTS = ['09:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00', '14:00-15:00']
@@ -21,6 +23,26 @@ const DEFAULT_CSE_SUBJECTS = [
   'Web Technology',
 ]
 
+const normalizeDivisionId = (value) => String(value || '').trim().toLowerCase()
+
+const formatDivisionLabel = (value) => {
+  const normalized = normalizeDivisionId(value)
+  return normalized ? normalized.toUpperCase() : 'N/A'
+}
+
+const getClassDisplayName = (classRow) => {
+  const className = classRow?.class_name || classRow?.className || ''
+  if (className) {
+    const normalizedName = normalizeDivisionId(className)
+    if (normalizedName && normalizedName === className) {
+      return normalizedName.toUpperCase()
+    }
+    return className
+  }
+
+  return formatDivisionLabel(classRow?.id)
+}
+
 function FacultyDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState('dashboard')
   const [classes, setClasses] = useState([])
@@ -40,6 +62,8 @@ function FacultyDashboard({ user, onLogout }) {
   const [assignmentDeadline, setAssignmentDeadline] = useState('')
   const [assignmentClassId, setAssignmentClassId] = useState('')
   const [assignmentSubject, setAssignmentSubject] = useState('')
+  const [doubts, setDoubts] = useState([])
+  const [replyDraftByDoubtId, setReplyDraftByDoubtId] = useState({})
 
   useEffect(() => {
     const loadFacultyData = async () => {
@@ -107,14 +131,39 @@ function FacultyDashboard({ user, onLogout }) {
     loadTimetable()
   }, [selectedClassForTimetable])
 
+  useEffect(() => {
+    if (!user?.uid) {
+      setDoubts([])
+      return () => {}
+    }
+
+    const doubtsQuery = query(collection(db, 'studentDoubts'), where('facultyUid', '==', user.uid))
+    const unsubscribe = onSnapshot(doubtsQuery, (snapshot) => {
+      const rows = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+      rows.sort((a, b) => {
+        const aTime = Date.parse(a.createdAt || '') || 0
+        const bTime = Date.parse(b.createdAt || '') || 0
+        return bTime - aTime
+      })
+      setDoubts(rows)
+    })
+
+    return () => unsubscribe()
+  }, [user?.uid])
+
   const classMap = useMemo(() => {
     const map = new Map()
-    classes.forEach((row) => map.set(row.id, row))
+    classes.forEach((row) => map.set(normalizeDivisionId(row.id), row))
     return map
   }, [classes])
 
   const classTeacherClassIds = useMemo(
-    () => new Set(classTeacherAssignments.map((item) => item.classId || item.class_id || item.id)),
+    () =>
+      new Set(
+        classTeacherAssignments
+          .map((item) => normalizeDivisionId(item.classId || item.class_id || item.id))
+          .filter(Boolean),
+      ),
     [classTeacherAssignments],
   )
   const isAssignedClassTeacher = classTeacherClassIds.size > 0
@@ -125,15 +174,21 @@ function FacultyDashboard({ user, onLogout }) {
     .filter((row) => row.schedule || (timetableByClass[row.id] || []).length > 0)
     .slice(0, 5)
 
-  const selectedClass = classes.find((row) => row.id === selectedClassForTimetable)
-  const canEditTimetable = selectedClass ? classTeacherClassIds.has(selectedClass.id) : false
+  const selectedClass = classes.find(
+    (row) => normalizeDivisionId(row.id) === normalizeDivisionId(selectedClassForTimetable),
+  )
+  const canEditTimetable = selectedClass
+    ? classTeacherClassIds.has(normalizeDivisionId(selectedClass.id))
+    : false
 
   const classTeacherEntry = classTeacherAssignments[0] || null
   const classTeacherClass = classTeacherEntry
-    ? classMap.get(classTeacherEntry.classId || classTeacherEntry.class_id || classTeacherEntry.id)
+    ? classMap.get(normalizeDivisionId(classTeacherEntry.classId || classTeacherEntry.class_id || classTeacherEntry.id))
     : null
   const classTeacherStudents = classTeacherClass
-    ? students.filter((item) => (item.class_id || item.classId) === classTeacherClass.id)
+    ? students.filter(
+        (item) => normalizeDivisionId(item.class_id || item.classId) === normalizeDivisionId(classTeacherClass.id),
+      )
     : []
 
   const subjectOptions = Array.from(
@@ -180,7 +235,7 @@ function FacultyDashboard({ user, onLogout }) {
         rows.push({
           id: `${classRow.id}_default`,
           classId: classRow.id,
-          className: classRow.class_name || classRow.className || classRow.id,
+          className: getClassDisplayName(classRow),
           subject: getClassSubjectText(classRow),
           schedule: getClassScheduleText(classRow),
         })
@@ -191,7 +246,7 @@ function FacultyDashboard({ user, onLogout }) {
         rows.push({
           id: `${classRow.id}_${slot.day}_${slot.time_slot}_${index}`,
           classId: classRow.id,
-          className: classRow.class_name || classRow.className || classRow.id,
+          className: getClassDisplayName(classRow),
           subject: slot.subject || getClassSubjectText(classRow),
           schedule: `${slot.day || ''} ${slot.time_slot || ''}`.trim() || 'N/A',
         })
@@ -318,9 +373,50 @@ function FacultyDashboard({ user, onLogout }) {
     }
   }
 
+  const handleReplyToDoubt = async (doubtId) => {
+    const draftMessage = String(replyDraftByDoubtId[doubtId] || '').trim()
+
+    if (!draftMessage) {
+      setErrorMessage('Please enter a reply message.')
+      return
+    }
+
+    const targetDoubt = doubts.find((item) => item.id === doubtId)
+    if (!targetDoubt) {
+      setErrorMessage('Unable to find selected doubt.')
+      return
+    }
+
+    setErrorMessage('')
+
+    try {
+      const nextReplies = [
+        ...(Array.isArray(targetDoubt.replies) ? targetDoubt.replies : []),
+        {
+          message: draftMessage,
+          repliedByUid: user?.uid || '',
+          repliedByName: user?.name || 'Faculty',
+          repliedAt: new Date().toISOString(),
+        },
+      ]
+
+      await updateDoc(doc(db, 'studentDoubts', doubtId), {
+        replies: nextReplies,
+        status: 'answered',
+        updatedAt: new Date().toISOString(),
+      })
+
+      setReplyDraftByDoubtId((prev) => ({ ...prev, [doubtId]: '' }))
+      setSuccessMessage('Doubt reply sent successfully.')
+    } catch {
+      setErrorMessage('Unable to send reply for this doubt.')
+    }
+  }
+
   const sideItems = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'classes', label: 'My Classes' },
+    { key: 'doubts', label: 'Doubts' },
     { key: 'assignments', label: 'Assignments' },
     { key: 'students', label: 'Students' },
   ]
@@ -420,6 +516,75 @@ function FacultyDashboard({ user, onLogout }) {
           </div>
         )}
 
+        {!loading && activePage === 'doubts' && (
+          <div className="admin-panel-card">
+            <h3>Student Doubts</h3>
+            <div className="users-table-wrap">
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Subject</th>
+                    <th>Doubt</th>
+                    <th>Reference</th>
+                    <th>Reply</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doubts.length === 0 ? (
+                    <tr>
+                      <td colSpan="5">No doubts assigned yet.</td>
+                    </tr>
+                  ) : (
+                    doubts.map((item) => {
+                      const latestReply = Array.isArray(item.replies) && item.replies.length > 0
+                        ? item.replies[item.replies.length - 1]
+                        : null
+
+                      return (
+                        <tr key={item.id}>
+                          <td>
+                            <div>{item.studentName || 'Student'}</div>
+                            <small>{item.studentEmail || 'N/A'}</small>
+                          </td>
+                          <td>{item.subject || 'N/A'}</td>
+                          <td>{item.question || 'N/A'}</td>
+                          <td>
+                            {item.referenceImageUrl ? (
+                              <a href={item.referenceImageUrl} target="_blank" rel="noreferrer">View Photo</a>
+                            ) : (
+                              'N/A'
+                            )}
+                          </td>
+                          <td>
+                            <textarea
+                              rows={2}
+                              value={replyDraftByDoubtId[item.id] || ''}
+                              onChange={(event) =>
+                                setReplyDraftByDoubtId((prev) => ({
+                                  ...prev,
+                                  [item.id]: event.target.value,
+                                }))
+                              }
+                              placeholder="Type reply"
+                            />
+                            <div className="table-actions" style={{ marginTop: 8 }}>
+                              <button type="button" onClick={() => handleReplyToDoubt(item.id)}>
+                                Send Reply
+                              </button>
+                            </div>
+                            <small>{latestReply?.message ? `Latest: ${latestReply.message}` : 'No reply yet'}</small>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {!loading && isAssignedClassTeacher && activePage === 'classTeacher' && (
           <div className="admin-panel-card">
             <h3>Class Teacher Section</h3>
@@ -428,7 +593,7 @@ function FacultyDashboard({ user, onLogout }) {
             ) : (
               <>
                 <p className="dashboard-welcome">
-                  Class: {classTeacherClass.class_name || classTeacherClass.className || classTeacherClass.id}
+                  Class: {getClassDisplayName(classTeacherClass)}
                 </p>
                 <p className="dashboard-welcome">
                   Department: {classTeacherClass.department || 'N/A'} | Total Students:{' '}
@@ -507,7 +672,7 @@ function FacultyDashboard({ user, onLogout }) {
                 <option value="">Select class</option>
                 {classes.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {row.class_name || row.className || row.id}
+                    {getClassDisplayName(row)}
                   </option>
                 ))}
               </select>
@@ -552,7 +717,11 @@ function FacultyDashboard({ user, onLogout }) {
                       <tr key={row.id}>
                         <td>{row.title}</td>
                         <td>{row.subject || 'N/A'}</td>
-                        <td>{classMap.get(row.class_id)?.class_name || row.class_id}</td>
+                        <td>
+                          {getClassDisplayName(
+                            classMap.get(normalizeDivisionId(row.class_id)) || { id: row.class_id },
+                          )}
+                        </td>
                         <td>{row.deadline}</td>
                       </tr>
                     ))
@@ -586,7 +755,13 @@ function FacultyDashboard({ user, onLogout }) {
                       <tr key={row.id || row.uid}>
                         <td>{row.name || 'N/A'}</td>
                         <td>{row.enrollment_number || row.enrollmentNumber || row.id || 'N/A'}</td>
-                        <td>{classMap.get(row.class_id || row.classId)?.class_name || row.class_id || 'N/A'}</td>
+                        <td>
+                          {getClassDisplayName(
+                            classMap.get(normalizeDivisionId(row.class_id || row.classId)) || {
+                              id: row.class_id || row.classId,
+                            },
+                          )}
+                        </td>
                         <td>{row.department || 'N/A'}</td>
                       </tr>
                     ))
@@ -610,7 +785,7 @@ function FacultyDashboard({ user, onLogout }) {
                 <option value="">Select class</option>
                 {classes.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {row.class_name || row.className || row.id}
+                    {getClassDisplayName(row)}
                   </option>
                 ))}
               </select>

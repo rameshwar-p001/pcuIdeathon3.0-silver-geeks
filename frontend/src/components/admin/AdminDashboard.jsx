@@ -1,6 +1,10 @@
 import AddFacultyForm from './AddFacultyForm'
+import AddCampusInchargeForm from './AddCampusInchargeForm'
+import AddPlacementCellForm from './AddPlacementCellForm'
+import AddExamCoordinatorForm from './AddExamCoordinatorForm'
 import AddStudentForm from './AddStudentForm'
 import AssignClassTeacherPanel from './AssignClassTeacherPanel'
+import AssignStudentDivisionPanel from './AssignStudentDivisionPanel'
 import AdminSidebar from './AdminSidebar'
 import AdminTopbar from './AdminTopbar'
 import AttendancePanel from './AttendancePanel'
@@ -13,13 +17,23 @@ function AdminDashboard({
   setActiveAdminPage,
   adminName,
   successMessage,
+  errorMessage,
   onLogout,
   students,
   faculties,
+  campusIncharges,
+  placementCells,
+  examCoordinators,
   studentForm,
   facultyForm,
+  campusInchargeForm,
+  placementCellForm,
+  examCoordinatorForm,
   onCreateStudent,
   onAddFaculty,
+  onAddCampusIncharge,
+  onAddPlacementCell,
+  onAddExamCoordinator,
   onEditUser,
   onDeleteUser,
   profileChangeRequests,
@@ -32,6 +46,7 @@ function AdminDashboard({
   selectedFacultyUid,
   setSelectedFacultyUid,
   onAssignClassTeacher,
+  onAssignStudentDivision,
 }) {
   const users = [
     ...students.map((student) => ({
@@ -45,6 +60,24 @@ function AdminDashboard({
       role: 'Faculty',
       email: faculty.email || '',
       department: faculty.department || 'N/A',
+    })),
+    ...campusIncharges.map((incharge) => ({
+      ...incharge,
+      role: 'Campus Incharge',
+      email: incharge.email || '',
+      department: incharge.department || 'N/A',
+    })),
+    ...placementCells.map((placementCell) => ({
+      ...placementCell,
+      role: 'Placement Cell',
+      email: placementCell.email || '',
+      department: placementCell.department || 'N/A',
+    })),
+    ...examCoordinators.map((coordinator) => ({
+      ...coordinator,
+      role: 'Exam Coordinator',
+      email: coordinator.email || '',
+      department: coordinator.department || 'N/A',
     })),
   ]
 
@@ -68,10 +101,19 @@ function AdminDashboard({
           </p>
         )}
 
+        {errorMessage && (
+          <p className="field-error" role="alert">
+            {errorMessage}
+          </p>
+        )}
+
         {activeAdminPage === 'dashboard' && (
           <DashboardOverview
             studentsCount={students.length}
             facultiesCount={faculties.length}
+            campusInchargeCount={campusIncharges.length}
+            placementCellCount={placementCells.length}
+            examCoordinatorCount={examCoordinators.length}
           />
         )}
 
@@ -118,6 +160,60 @@ function AdminDashboard({
           />
         )}
 
+        {activeAdminPage === 'campusIncharge' && (
+          <AddCampusInchargeForm
+            inchargeName={campusInchargeForm.inchargeName}
+            setInchargeName={campusInchargeForm.setInchargeName}
+            inchargeEmail={campusInchargeForm.inchargeEmail}
+            setInchargeEmail={campusInchargeForm.setInchargeEmail}
+            inchargeId={campusInchargeForm.inchargeId}
+            setInchargeId={campusInchargeForm.setInchargeId}
+            inchargeDepartment={campusInchargeForm.inchargeDepartment}
+            setInchargeDepartment={campusInchargeForm.setInchargeDepartment}
+            inchargePhone={campusInchargeForm.inchargePhone}
+            setInchargePhone={campusInchargeForm.setInchargePhone}
+            inchargePassword={campusInchargeForm.inchargePassword}
+            setInchargePassword={campusInchargeForm.setInchargePassword}
+            onSubmit={onAddCampusIncharge}
+          />
+        )}
+
+        {activeAdminPage === 'placementCell' && (
+          <AddPlacementCellForm
+            placementName={placementCellForm.placementName}
+            setPlacementName={placementCellForm.setPlacementName}
+            placementEmail={placementCellForm.placementEmail}
+            setPlacementEmail={placementCellForm.setPlacementEmail}
+            placementId={placementCellForm.placementId}
+            setPlacementId={placementCellForm.setPlacementId}
+            placementDepartment={placementCellForm.placementDepartment}
+            setPlacementDepartment={placementCellForm.setPlacementDepartment}
+            placementPhone={placementCellForm.placementPhone}
+            setPlacementPhone={placementCellForm.setPlacementPhone}
+            placementPassword={placementCellForm.placementPassword}
+            setPlacementPassword={placementCellForm.setPlacementPassword}
+            onSubmit={onAddPlacementCell}
+          />
+        )}
+
+        {activeAdminPage === 'examCoordinator' && (
+          <AddExamCoordinatorForm
+            examCoordinatorName={examCoordinatorForm.examCoordinatorName}
+            setExamCoordinatorName={examCoordinatorForm.setExamCoordinatorName}
+            examCoordinatorEmail={examCoordinatorForm.examCoordinatorEmail}
+            setExamCoordinatorEmail={examCoordinatorForm.setExamCoordinatorEmail}
+            examCoordinatorId={examCoordinatorForm.examCoordinatorId}
+            setExamCoordinatorId={examCoordinatorForm.setExamCoordinatorId}
+            examCoordinatorDepartment={examCoordinatorForm.examCoordinatorDepartment}
+            setExamCoordinatorDepartment={examCoordinatorForm.setExamCoordinatorDepartment}
+            examCoordinatorPhone={examCoordinatorForm.examCoordinatorPhone}
+            setExamCoordinatorPhone={examCoordinatorForm.setExamCoordinatorPhone}
+            examCoordinatorPassword={examCoordinatorForm.examCoordinatorPassword}
+            setExamCoordinatorPassword={examCoordinatorForm.setExamCoordinatorPassword}
+            onSubmit={onAddExamCoordinator}
+          />
+        )}
+
         {activeAdminPage === 'users' && (
           <ManageUsersTable
             users={users}
@@ -138,6 +234,15 @@ function AdminDashboard({
             selectedFacultyUid={selectedFacultyUid}
             setSelectedFacultyUid={setSelectedFacultyUid}
             onAssign={onAssignClassTeacher}
+          />
+        )}
+
+        {activeAdminPage === 'studentDivision' && (
+          <AssignStudentDivisionPanel
+            students={students}
+            classOptions={classOptions}
+            classTeacherAssignments={classTeacherAssignments}
+            onAssignDivision={onAssignStudentDivision}
           />
         )}
 
