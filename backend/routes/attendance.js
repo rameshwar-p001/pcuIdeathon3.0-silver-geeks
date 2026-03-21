@@ -678,13 +678,19 @@ router.post('/face-verify', verifyToken, async (req, res) => {
         luxandPayload?.raw ||
         'Face verification failed by provider';
 
-      const mappedStatus = [400, 401, 403, 404, 422, 429].includes(luxandResponse.status)
+      const providerFailureMessage = luxandResponse.status === 401
+        ? 'Luxand API authentication failed. Check server Luxand API key configuration.'
+        : upstreamMessage;
+
+      // Reserve 401 for our own authentication middleware only.
+      // Provider-side auth/quota failures should surface as upstream errors.
+      const mappedStatus = [400, 403, 404, 422, 429].includes(luxandResponse.status)
         ? luxandResponse.status
         : 502;
 
       return res.status(mappedStatus).json({
         success: false,
-        message: `Luxand verify failed: ${upstreamMessage}`,
+        message: `Luxand verify failed: ${providerFailureMessage}`,
         error: {
           endpoint: luxandEndpoint,
           providerStatus: luxandResponse.status,

@@ -1,11 +1,50 @@
 import { auth, db } from '../config/firebaseAdmin.js';
 
+const extractBearerToken = (authorizationHeader) => {
+  const headerValue = String(authorizationHeader || '').trim();
+  if (!headerValue) {
+    return null;
+  }
+
+  // Accept `Bearer <token>` in a case-insensitive way and ignore extra spaces.
+  const match = headerValue.match(/^Bearer\s+(.+)$/i);
+  if (match?.[1]) {
+    return match[1].trim();
+  }
+
+  return null;
+};
+
+const decodeJwtPayloadUnsafe = (token) => {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const decoded = Buffer.from(padded, 'base64').toString('utf8');
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+};
+
 // Middleware to verify Firebase ID token
 export const verifyToken = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split('Bearer ')[1];
+    const authorizationHeader = req.headers.authorization;
+    const token = extractBearerToken(authorizationHeader);
     
     if (!token) {
+      console.warn('verifyToken missing bearer token:', {
+        method: req.method,
+        path: req.originalUrl,
+        hasAuthorizationHeader: Boolean(authorizationHeader),
+        authorizationPreview: authorizationHeader ? String(authorizationHeader).slice(0, 20) : null,
+      });
+
       return res.status(401).json({
         success: false,
         message: 'No token provided'
@@ -33,6 +72,22 @@ export const verifyToken = async (req, res, next) => {
     
     next();
   } catch (error) {
+    const token = extractBearerToken(req.headers.authorization);
+    const payload = decodeJwtPayloadUnsafe(token);
+
+    console.error('verifyToken failed:', {
+      code: error?.code || 'unknown',
+      message: error?.message || 'unknown error',
+      path: req.originalUrl,
+      tokenClaims: payload ? {
+        aud: payload.aud,
+        iss: payload.iss,
+        sub: payload.sub,
+        exp: payload.exp,
+        iat: payload.iat,
+      } : null,
+    });
+
     return res.status(401).json({
       success: false,
       message: 'Invalid or expired token',
