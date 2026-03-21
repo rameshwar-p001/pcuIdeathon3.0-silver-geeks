@@ -9,6 +9,9 @@ function App() {
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   const isRegister = mode === 'register'
   const passwordsMatch = useMemo(() => {
@@ -19,8 +22,50 @@ function App() {
     return password.length > 0 && password === confirmPassword
   }, [confirmPassword, isRegister, password])
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
+
+    if (isRegister && !passwordsMatch) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+
+    try {
+      const endpoint = isRegister ? 'register' : 'login'
+      const response = await fetch(`http://localhost:5000/api/auth/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Authentication failed')
+      }
+
+      if (data.user?.idToken) {
+        const storage = rememberMe ? localStorage : sessionStorage
+        storage.setItem('authToken', data.user.idToken)
+        storage.setItem(
+          'authUser',
+          JSON.stringify({ uid: data.user.uid, email: data.user.email }),
+        )
+      }
+
+      setSuccessMessage(data.message || 'Authentication successful')
+      setPassword('')
+      setConfirmPassword('')
+    } catch (error) {
+      setErrorMessage(error.message || 'Something went wrong. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const PasswordEyeIcon = ({ isOpen }) => (
@@ -88,6 +133,17 @@ function App() {
                 : 'Sign in to continue to your dashboard.'}
             </p>
           </div>
+
+          {errorMessage && (
+            <p className="field-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+          {successMessage && (
+            <p className="field-success" role="status">
+              {successMessage}
+            </p>
+          )}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             <label htmlFor="email">Email</label>
@@ -169,9 +225,13 @@ function App() {
             <button
               type="submit"
               className="submit-btn"
-              disabled={isRegister && !passwordsMatch}
+              disabled={isSubmitting || (isRegister && !passwordsMatch)}
             >
-              {isRegister ? 'Create Account' : 'Login'}
+              {isSubmitting
+                ? 'Please wait...'
+                : isRegister
+                  ? 'Create Account'
+                  : 'Login'}
             </button>
           </form>
 
