@@ -1,4 +1,4 @@
-function AdminSidebar({ activeAdminPage, setActiveAdminPage, onLogout }) {
+function AdminSidebar({ activeAdminPage, setActiveAdminPage, pendingRequestsCount, onLogout }) {
   return (
     <aside className="admin-sidebar">
       <h3>ERP Admin</h3>
@@ -36,6 +36,13 @@ function AdminSidebar({ activeAdminPage, setActiveAdminPage, onLogout }) {
         onClick={() => setActiveAdminPage('attendance')}
       >
         Attendance
+      </button>
+      <button
+        type="button"
+        className={activeAdminPage === 'requests' ? 'active' : ''}
+        onClick={() => setActiveAdminPage('requests')}
+      >
+        Profile Requests{pendingRequestsCount > 0 ? ` (${pendingRequestsCount})` : ''}
       </button>
       <button type="button" onClick={onLogout}>
         Logout

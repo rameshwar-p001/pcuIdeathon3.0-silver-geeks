@@ -5,6 +5,7 @@ import AdminTopbar from './AdminTopbar'
 import AttendancePanel from './AttendancePanel'
 import DashboardOverview from './DashboardOverview'
 import ManageUsersTable from './ManageUsersTable'
+import ProfileChangeRequestsPanel from './ProfileChangeRequestsPanel'
 
 function AdminDashboard({
   activeAdminPage,
@@ -20,6 +21,9 @@ function AdminDashboard({
   onAddFaculty,
   onEditUser,
   onDeleteUser,
+  profileChangeRequests,
+  onApproveProfileChangeRequest,
+  onRejectProfileChangeRequest,
 }) {
   const users = [
     ...students.map((student) => ({
@@ -41,6 +45,9 @@ function AdminDashboard({
       <AdminSidebar
         activeAdminPage={activeAdminPage}
         setActiveAdminPage={setActiveAdminPage}
+        pendingRequestsCount={
+          profileChangeRequests.filter((request) => request.status === 'pending').length
+        }
         onLogout={onLogout}
       />
 
@@ -109,6 +116,14 @@ function AdminDashboard({
         )}
 
         {activeAdminPage === 'attendance' && <AttendancePanel />}
+
+        {activeAdminPage === 'requests' && (
+          <ProfileChangeRequestsPanel
+            requests={profileChangeRequests}
+            onApprove={onApproveProfileChangeRequest}
+            onReject={onRejectProfileChangeRequest}
+          />
+        )}
       </section>
     </div>
   )

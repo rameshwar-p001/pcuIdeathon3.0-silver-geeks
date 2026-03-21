@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import attendanceRoutes from './routes/attendance.js';
+import collaborationRoutes from './routes/collaboration.js';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/collaboration', collaborationRoutes);
 
 app.get('/', (req, res) => {
   res.json({
@@ -53,6 +55,13 @@ app.get('/', (req, res) => {
         userAttendance: 'GET /api/attendance/user/:userId',
         allAttendance: 'GET /api/attendance/all',
         summary: 'GET /api/attendance/summary'
+      },
+      collaboration: {
+        listPosts: 'GET /api/collaboration/posts',
+        createPost: 'POST /api/collaboration/posts',
+        requestToJoin: 'POST /api/collaboration/posts/:postId/request',
+        cancelRequest: 'POST /api/collaboration/posts/:postId/request/cancel',
+        ownerDecision: 'POST /api/collaboration/posts/:postId/request/:joinerUid/decision'
       }
     }
   });

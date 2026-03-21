@@ -12,6 +12,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
+  query,
   updateDoc,
 } from 'firebase/firestore'
 import FacultyDashboard from './components/FacultyDashboard'
@@ -23,6 +25,7 @@ import './App.css'
 
 const ADMIN_EMAIL = 'admin@rdp.com'
 const ADMIN_PASSWORD = '123456'
+const SESSION_KEY = 'campusSession'
 
 function toCampusEmail(input) {
   const normalized = input.trim().toLowerCase()
@@ -93,9 +96,24 @@ function App() {
   const [facultyPassword, setFacultyPassword] = useState('')
   const [students, setStudents] = useState([])
   const [faculties, setFaculties] = useState([])
+  const [profileChangeRequests, setProfileChangeRequests] = useState([])
+
+  const persistSession = (role, user, shouldRemember) => {
+    const payload = JSON.stringify({ role, user })
+
+    if (shouldRemember) {
+      localStorage.setItem(SESSION_KEY, payload)
+      sessionStorage.removeItem(SESSION_KEY)
+      return
+    }
+
+    sessionStorage.setItem(SESSION_KEY, payload)
+    localStorage.removeItem(SESSION_KEY)
+  }
 
   useEffect(() => {
-    const savedSession = localStorage.getItem('campusSession')
+    const savedSession =
+      localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
 
     if (savedSession) {
       try {
@@ -103,7 +121,8 @@ function App() {
         const validRoles = ['admin', 'student', 'faculty']
 
         if (!validRoles.includes(parsed?.role) || !parsed?.user) {
-          localStorage.removeItem('campusSession')
+          localStorage.removeItem(SESSION_KEY)
+          sessionStorage.removeItem(SESSION_KEY)
           return
         }
 
@@ -112,7 +131,8 @@ function App() {
         setLoggedInUser(parsed.user)
         setSuccessMessage(`Welcome back, ${parsed.user.name || 'User'}.`)
       } catch {
-        localStorage.removeItem('campusSession')
+        localStorage.removeItem(SESSION_KEY)
+        sessionStorage.removeItem(SESSION_KEY)
       }
     }
   }, [])
@@ -151,6 +171,51 @@ function App() {
   }, [isAuthenticated, loggedInRole])
 
   useEffect(() => {
+    if (!isAuthenticated || loggedInRole !== 'admin') {
+      setProfileChangeRequests([])
+      return undefined
+    }
+
+    const requestsQuery = query(collection(db, 'profileChangeRequests'))
+
+    const unsubscribe = onSnapshot(
+      requestsQuery,
+      (snapshot) => {
+        const rows = []
+
+        snapshot.forEach((item) => {
+          rows.push({
+            id: item.id,
+            ...item.data(),
+          })
+        })
+
+        rows.sort((a, b) => {
+          const aTime = Date.parse(a.createdAt || '') || 0
+          const bTime = Date.parse(b.createdAt || '') || 0
+
+          if (a.status === 'pending' && b.status !== 'pending') {
+            return -1
+          }
+
+          if (a.status !== 'pending' && b.status === 'pending') {
+            return 1
+          }
+
+          return bTime - aTime
+        })
+
+        setProfileChangeRequests(rows)
+      },
+      () => {
+        setErrorMessage('Unable to load profile change requests.')
+      },
+    )
+
+    return () => unsubscribe()
+  }, [isAuthenticated, loggedInRole])
+
+  useEffect(() => {
     if (isAuthenticated) {
       document.body.classList.add('dashboard-mode')
     } else {
@@ -182,11 +247,7 @@ function App() {
       setLoggedInUser(user)
       setIsAuthenticated(true)
 
-      if (rememberMe) {
-        localStorage.setItem('campusSession', JSON.stringify({ role: 'admin', user }))
-      } else {
-        localStorage.removeItem('campusSession')
-      }
+      persistSession('admin', user, rememberMe)
 
       setSuccessMessage('Login successful.')
       setPassword('')
@@ -230,11 +291,7 @@ function App() {
       setLoggedInUser(user)
       setIsAuthenticated(true)
 
-      if (rememberMe) {
-        localStorage.setItem('campusSession', JSON.stringify({ role, user }))
-      } else {
-        localStorage.removeItem('campusSession')
-      }
+      persistSession(role, user, rememberMe)
 
       setSuccessMessage('Login successful.')
       setPassword('')
@@ -244,7 +301,8 @@ function App() {
   }
 
   const handleLogout = async () => {
-    localStorage.removeItem('campusSession')
+    localStorage.removeItem(SESSION_KEY)
+    sessionStorage.removeItem(SESSION_KEY)
 
     if (loggedInRole !== 'admin') {
       await signOut(auth).catch(() => {})
@@ -314,6 +372,9 @@ function App() {
         department: nextDepartment,
         semester: semesterNumber,
         phone: nextPhone,
+        pendingAssignmentsCount: 0,
+        feeStatus: 'Pending',
+        selfieUrl: '',
         createdAt: new Date().toISOString(),
       }
 
@@ -500,6 +561,76 @@ function App() {
     setSuccessMessage('Faculty updated.')
   }
 
+  const handleApproveProfileChangeRequest = async (requestId) => {
+    const request = profileChangeRequests.find((item) => item.id === requestId)
+
+    if (!request || request.status !== 'pending') {
+      return
+    }
+
+    const allowedKeys = ['name', 'department', 'semester', 'phone']
+    const rawChanges = request.requestedChanges || {}
+    const approvedChanges = {}
+
+    allowedKeys.forEach((key) => {
+      if (rawChanges[key] !== undefined) {
+        approvedChanges[key] = rawChanges[key]
+      }
+    })
+
+    if (Object.keys(approvedChanges).length > 0) {
+      try {
+        await updateDoc(doc(db, 'users', request.studentUid), approvedChanges)
+      } catch {
+        setErrorMessage('Unable to apply approved changes to student profile.')
+        return
+      }
+    }
+
+    try {
+      await updateDoc(doc(db, 'profileChangeRequests', requestId), {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        approvedBy: loggedInUser?.id || 'admin',
+      })
+    } catch {
+      setErrorMessage('Unable to mark request as approved.')
+      return
+    }
+
+    if (Object.keys(approvedChanges).length > 0) {
+      setStudents((prev) =>
+        prev.map((student) =>
+          student.uid === request.studentUid ? { ...student, ...approvedChanges } : student,
+        ),
+      )
+    }
+
+    setSuccessMessage('Profile change request approved and saved.')
+  }
+
+  const handleRejectProfileChangeRequest = async (requestId) => {
+    const request = profileChangeRequests.find((item) => item.id === requestId)
+
+    if (!request || request.status !== 'pending') {
+      return
+    }
+
+    const note = window.prompt('Optional rejection note', '')
+
+    try {
+      await updateDoc(doc(db, 'profileChangeRequests', requestId), {
+        status: 'rejected',
+        rejectedAt: new Date().toISOString(),
+        rejectedBy: loggedInUser?.id || 'admin',
+        rejectionNote: note?.trim() || '',
+      })
+      setSuccessMessage('Profile change request rejected.')
+    } catch {
+      setErrorMessage('Unable to reject profile change request.')
+    }
+  }
+
   const showForgotMessage = () => {
     setSuccessMessage('Please contact admin to reset your credentials.')
     setErrorMessage('')
@@ -580,6 +711,9 @@ function App() {
              onAddFaculty={handleAddFaculty}
              onEditUser={handleEditUser}
              onDeleteUser={handleDeleteUser}
+             profileChangeRequests={profileChangeRequests}
+             onApproveProfileChangeRequest={handleApproveProfileChangeRequest}
+             onRejectProfileChangeRequest={handleRejectProfileChangeRequest}
            />
          )}
  
