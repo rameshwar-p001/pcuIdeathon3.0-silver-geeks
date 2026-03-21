@@ -1,34 +1,81 @@
 import express from 'express';
-import dotenv from 'dotenv';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword 
-} from 'firebase/auth';
+import { auth, db, useAdminSdk } from '../config/firebaseAdmin.js';
+import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-dotenv.config();
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
+// Middleware to check if Admin SDK is available
+const requireAdminSdk = (req, res, next) => {
+  if (!useAdminSdk) {
+    return res.status(503).json({
+      success: false,
+      message: 'Service account credentials required. Please add Firebase service account to continue.'
+    });
+  }
+  next();
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-// Register endpoint
-router.post('/register', async (req, res) => {
+// Login endpoint
+router.post('/login', requireAdminSdk, async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    // Get user by email from Firebase Auth
+    const userRecord = await auth.getUserByEmail(email);
+    
+    // Create custom token for frontend authentication
+    const customToken = await auth.createCustomToken(userRecord.uid);
+
+    // Get user profile from Firestore to retrieve role
+    const userDoc = await db.collection('users').doc(userRecord.uid).get();
+    let role = 'student';
+    let userData = null;
+
+    if (userDoc.exists) {
+      userData = userDoc.data();
+      role = userData.role || 'student';
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        uid: userRecord.uid,
+        email: userRecord.email,
+        customToken: customToken,
+        role: role,
+        name: userData?.name || ''
+      }
+    });
+  } catch (error) {
+    let message = 'Login failed';
+
+    if (error.code === 'auth/user-not-found') {
+      message = 'User not found';
+    } else if (error.code === 'auth/invalid-email') {
+      message = 'Invalid email address';
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: message,
+      error: error.code
+    });
+  }
+});
+
+// Register endpoint - Creates admin user (first-time setup)
+router.post('/register', requireAdminSdk, async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
 
     // Validation
     if (!email || !password) {
@@ -45,29 +92,42 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Create user with Firebase
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    const idToken = await user.getIdToken();
+    // Create user in Firebase Auth
+    const userRecord = await auth.createUser({
+      email: email,
+      password: password,
+      displayName: name || email
+    });
+
+    // Store user profile in Firestore as admin
+    await db.collection('users').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      name: name || email,
+      email: email,
+      role: 'admin',
+      createdAt: new Date()
+    });
+
+    const customToken = await auth.createCustomToken(userRecord.uid);
 
     return res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'Admin registration successful',
       user: {
-        uid: user.uid,
-        email: user.email,
-        idToken: idToken
+        uid: userRecord.uid,
+        email: email,
+        name: name || email,
+        customToken: customToken,
+        role: 'admin'
       }
     });
   } catch (error) {
     let message = 'Registration failed';
 
-    if (error.code === 'auth/email-already-in-use') {
+    if (error.code === 'auth/email-already-exists') {
       message = 'Email already in use';
     } else if (error.code === 'auth/invalid-email') {
       message = 'Invalid email address';
-    } else if (error.code === 'auth/weak-password') {
-      message = 'Password is too weak';
     }
 
     return res.status(400).json({
@@ -78,48 +138,28 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login endpoint
-router.post('/login', async (req, res) => {
+// Get current user profile
+router.get('/me', verifyToken, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
 
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({
+    if (!userDoc.exists) {
+      return res.status(404).json({
         success: false,
-        message: 'Email and password are required'
+        message: 'User profile not found'
       });
     }
 
-    // Sign in with Firebase
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    const idToken = await user.getIdToken();
-
     return res.status(200).json({
       success: true,
-      message: 'Login successful',
-      user: {
-        uid: user.uid,
-        email: user.email,
-        idToken: idToken
-      }
+      message: 'User profile retrieved',
+      data: userDoc.data()
     });
   } catch (error) {
-    let message = 'Login failed';
-
-    if (error.code === 'auth/user-not-found') {
-      message = 'User not found';
-    } else if (error.code === 'auth/wrong-password') {
-      message = 'Incorrect password';
-    } else if (error.code === 'auth/invalid-email') {
-      message = 'Invalid email address';
-    }
-
-    return res.status(400).json({
+    return res.status(500).json({
       success: false,
-      message: message,
-      error: error.code
+      message: 'Failed to retrieve user profile',
+      error: error.message
     });
   }
 });
