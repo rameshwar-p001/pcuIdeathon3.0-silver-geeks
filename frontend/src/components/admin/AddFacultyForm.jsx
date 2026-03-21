@@ -34,7 +34,7 @@ function AddFacultyForm({
         <label htmlFor="faculty-password">Password</label>
         <input
           id="faculty-password"
-          type="text"
+          type="password"
           value={facultyPassword}
           onChange={(event) => setFacultyPassword(event.target.value)}
           placeholder="Set password"

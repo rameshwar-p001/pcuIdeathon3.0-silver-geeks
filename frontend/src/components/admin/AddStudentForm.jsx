@@ -34,7 +34,7 @@ function AddStudentForm({
         <label htmlFor="student-password">Password</label>
         <input
           id="student-password"
-          type="text"
+          type="password"
           value={studentPassword}
           onChange={(event) => setStudentPassword(event.target.value)}
           placeholder="Set password"
