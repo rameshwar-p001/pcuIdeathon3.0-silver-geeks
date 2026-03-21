@@ -78,10 +78,18 @@ function App() {
   const [successMessage, setSuccessMessage] = useState('')
   const [loggedInUser, setLoggedInUser] = useState(null)
   const [studentName, setStudentName] = useState('')
-  const [studentId, setStudentId] = useState('')
+  const [studentEmail, setStudentEmail] = useState('')
+  const [studentEnrollmentNumber, setStudentEnrollmentNumber] = useState('')
+  const [studentDepartment, setStudentDepartment] = useState('')
+  const [studentSemester, setStudentSemester] = useState('')
+  const [studentPhone, setStudentPhone] = useState('')
   const [studentPassword, setStudentPassword] = useState('')
   const [facultyName, setFacultyName] = useState('')
-  const [facultyId, setFacultyId] = useState('')
+  const [facultyEmail, setFacultyEmail] = useState('')
+  const [facultyMemberId, setFacultyMemberId] = useState('')
+  const [facultyDepartment, setFacultyDepartment] = useState('')
+  const [facultySubject, setFacultySubject] = useState('')
+  const [facultyPhone, setFacultyPhone] = useState('')
   const [facultyPassword, setFacultyPassword] = useState('')
   const [students, setStudents] = useState([])
   const [faculties, setFaculties] = useState([])
@@ -257,39 +265,60 @@ function App() {
     setErrorMessage('')
 
     const nextName = studentName.trim()
-    const nextId = studentId.trim().toLowerCase()
+    const nextEmail = studentEmail.trim().toLowerCase()
+    const nextEnrollmentNumber = studentEnrollmentNumber.trim().toLowerCase()
+    const nextDepartment = studentDepartment.trim()
+    const nextSemester = studentSemester.trim()
+    const nextPhone = studentPhone.trim()
     const nextPassword = studentPassword.trim()
+    const semesterNumber = Number.parseInt(nextSemester, 10)
 
-    if (!nextName || !nextId || !nextPassword) {
-      setErrorMessage('Student name, ID and password are required.')
+    if (
+      !nextName ||
+      !nextEmail ||
+      !nextEnrollmentNumber ||
+      !nextDepartment ||
+      !nextSemester ||
+      !nextPassword
+    ) {
+      setErrorMessage(
+        'Student name, email, enrollment number, department, semester and password are required.',
+      )
       return
     }
 
-    if (!isValidCampusIdentifier(nextId)) {
-      setErrorMessage('Invalid student ID format. Avoid spaces and special symbols.')
+    if (!Number.isInteger(semesterNumber) || semesterNumber <= 0) {
+      setErrorMessage('Semester must be a valid positive number.')
       return
     }
 
     if (
-      students.some((student) => student.id === nextId) ||
-      faculties.some((faculty) => faculty.id === nextId)
+      students.some(
+        (student) =>
+          student.enrollmentNumber === nextEnrollmentNumber ||
+          student.email?.toLowerCase() === nextEmail,
+      ) ||
+      faculties.some((faculty) => faculty.email?.toLowerCase() === nextEmail)
     ) {
-      setErrorMessage('This ID already exists.')
+      setErrorMessage('Student email or enrollment number already exists.')
       return
     }
 
     try {
-      const emailAddress = toCampusEmail(nextId)
       const profile = {
         role: 'student',
         name: nextName,
-        id: nextId,
-        email: emailAddress,
+        id: nextEnrollmentNumber,
+        email: nextEmail,
+        enrollmentNumber: nextEnrollmentNumber,
+        department: nextDepartment,
+        semester: semesterNumber,
+        phone: nextPhone,
         createdAt: new Date().toISOString(),
       }
 
       const createdUser = await createAuthUserFromAdminSession(
-        emailAddress,
+        nextEmail,
         nextPassword,
         profile,
       )
@@ -303,7 +332,11 @@ function App() {
 
     setErrorMessage('')
     setStudentName('')
-    setStudentId('')
+    setStudentEmail('')
+    setStudentEnrollmentNumber('')
+    setStudentDepartment('')
+    setStudentSemester('')
+    setStudentPhone('')
     setStudentPassword('')
   }
 
@@ -312,39 +345,52 @@ function App() {
     setErrorMessage('')
 
     const nextName = facultyName.trim()
-    const nextId = facultyId.trim().toLowerCase()
+    const nextEmail = facultyEmail.trim().toLowerCase()
+    const nextFacultyId = facultyMemberId.trim().toLowerCase()
+    const nextDepartment = facultyDepartment.trim()
+    const nextSubject = facultySubject.trim()
+    const nextPhone = facultyPhone.trim()
     const nextPassword = facultyPassword.trim()
 
-    if (!nextName || !nextId || !nextPassword) {
-      setErrorMessage('Faculty name, ID and password are required.')
+    if (!nextName || !nextEmail || !nextFacultyId || !nextDepartment || !nextPassword) {
+      setErrorMessage(
+        'Faculty name, email, faculty ID, department and password are required.',
+      )
       return
     }
 
-    if (!isValidCampusIdentifier(nextId)) {
+    if (!isValidCampusIdentifier(nextFacultyId)) {
       setErrorMessage('Invalid faculty ID format. Avoid spaces and special symbols.')
       return
     }
 
     if (
-      faculties.some((faculty) => faculty.id === nextId) ||
-      students.some((student) => student.id === nextId)
+      faculties.some(
+        (faculty) =>
+          faculty.facultyId === nextFacultyId ||
+          faculty.email?.toLowerCase() === nextEmail,
+      ) ||
+      students.some((student) => student.email?.toLowerCase() === nextEmail)
     ) {
-      setErrorMessage('This ID already exists.')
+      setErrorMessage('Faculty email or faculty ID already exists.')
       return
     }
 
     try {
-      const emailAddress = toCampusEmail(nextId)
       const profile = {
         role: 'faculty',
         name: nextName,
-        id: nextId,
-        email: emailAddress,
+        id: nextFacultyId,
+        email: nextEmail,
+        facultyId: nextFacultyId,
+        department: nextDepartment,
+        subject: nextSubject,
+        phone: nextPhone,
         createdAt: new Date().toISOString(),
       }
 
       const createdUser = await createAuthUserFromAdminSession(
-        emailAddress,
+        nextEmail,
         nextPassword,
         profile,
       )
@@ -358,7 +404,11 @@ function App() {
 
     setErrorMessage('')
     setFacultyName('')
-    setFacultyId('')
+    setFacultyEmail('')
+    setFacultyMemberId('')
+    setFacultyDepartment('')
+    setFacultySubject('')
+    setFacultyPhone('')
     setFacultyPassword('')
   }
 
@@ -497,16 +547,32 @@ function App() {
              studentForm={{
                studentName,
                setStudentName,
-               studentId,
-               setStudentId,
+               studentEmail,
+               setStudentEmail,
+               studentEnrollmentNumber,
+               setStudentEnrollmentNumber,
+               studentDepartment,
+               setStudentDepartment,
+               studentSemester,
+               setStudentSemester,
+               studentPhone,
+               setStudentPhone,
                studentPassword,
                setStudentPassword,
              }}
              facultyForm={{
                facultyName,
                setFacultyName,
-               facultyId,
-               setFacultyId,
+               facultyEmail,
+               setFacultyEmail,
+               facultyMemberId,
+               setFacultyMemberId,
+               facultyDepartment,
+               setFacultyDepartment,
+               facultySubject,
+               setFacultySubject,
+               facultyPhone,
+               setFacultyPhone,
                facultyPassword,
                setFacultyPassword,
              }}

@@ -25,14 +25,14 @@ function AdminDashboard({
     ...students.map((student) => ({
       ...student,
       role: 'Student',
-      email: `${student.id}@campus.local`,
-      department: 'N/A',
+      email: student.email || '',
+      department: student.department || 'N/A',
     })),
     ...faculties.map((faculty) => ({
       ...faculty,
       role: 'Faculty',
-      email: `${faculty.id}@campus.local`,
-      department: 'N/A',
+      email: faculty.email || '',
+      department: faculty.department || 'N/A',
     })),
   ]
 
@@ -64,8 +64,16 @@ function AdminDashboard({
           <AddStudentForm
             studentName={studentForm.studentName}
             setStudentName={studentForm.setStudentName}
-            studentId={studentForm.studentId}
-            setStudentId={studentForm.setStudentId}
+            studentEmail={studentForm.studentEmail}
+            setStudentEmail={studentForm.setStudentEmail}
+            studentEnrollmentNumber={studentForm.studentEnrollmentNumber}
+            setStudentEnrollmentNumber={studentForm.setStudentEnrollmentNumber}
+            studentDepartment={studentForm.studentDepartment}
+            setStudentDepartment={studentForm.setStudentDepartment}
+            studentSemester={studentForm.studentSemester}
+            setStudentSemester={studentForm.setStudentSemester}
+            studentPhone={studentForm.studentPhone}
+            setStudentPhone={studentForm.setStudentPhone}
             studentPassword={studentForm.studentPassword}
             setStudentPassword={studentForm.setStudentPassword}
             onSubmit={onCreateStudent}
@@ -76,8 +84,16 @@ function AdminDashboard({
           <AddFacultyForm
             facultyName={facultyForm.facultyName}
             setFacultyName={facultyForm.setFacultyName}
-            facultyId={facultyForm.facultyId}
-            setFacultyId={facultyForm.setFacultyId}
+            facultyEmail={facultyForm.facultyEmail}
+            setFacultyEmail={facultyForm.setFacultyEmail}
+            facultyMemberId={facultyForm.facultyMemberId}
+            setFacultyMemberId={facultyForm.setFacultyMemberId}
+            facultyDepartment={facultyForm.facultyDepartment}
+            setFacultyDepartment={facultyForm.setFacultyDepartment}
+            facultySubject={facultyForm.facultySubject}
+            setFacultySubject={facultyForm.setFacultySubject}
+            facultyPhone={facultyForm.facultyPhone}
+            setFacultyPhone={facultyForm.setFacultyPhone}
             facultyPassword={facultyForm.facultyPassword}
             setFacultyPassword={facultyForm.setFacultyPassword}
             onSubmit={onAddFaculty}

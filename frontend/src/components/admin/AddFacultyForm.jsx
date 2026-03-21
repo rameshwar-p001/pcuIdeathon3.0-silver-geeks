@@ -1,8 +1,16 @@
 function AddFacultyForm({
   facultyName,
   setFacultyName,
-  facultyId,
-  setFacultyId,
+  facultyEmail,
+  setFacultyEmail,
+  facultyMemberId,
+  setFacultyMemberId,
+  facultyDepartment,
+  setFacultyDepartment,
+  facultySubject,
+  setFacultySubject,
+  facultyPhone,
+  setFacultyPhone,
   facultyPassword,
   setFacultyPassword,
   onSubmit,
@@ -21,14 +29,52 @@ function AddFacultyForm({
           required
         />
 
+        <label htmlFor="faculty-email">Email</label>
+        <input
+          id="faculty-email"
+          type="email"
+          value={facultyEmail}
+          onChange={(event) => setFacultyEmail(event.target.value)}
+          placeholder="Enter faculty email"
+          required
+        />
+
         <label htmlFor="faculty-id">Faculty ID</label>
         <input
           id="faculty-id"
           type="text"
-          value={facultyId}
-          onChange={(event) => setFacultyId(event.target.value)}
+          value={facultyMemberId}
+          onChange={(event) => setFacultyMemberId(event.target.value)}
           placeholder="Enter faculty id"
           required
+        />
+
+        <label htmlFor="faculty-department">Department</label>
+        <input
+          id="faculty-department"
+          type="text"
+          value={facultyDepartment}
+          onChange={(event) => setFacultyDepartment(event.target.value)}
+          placeholder="Enter department"
+          required
+        />
+
+        <label htmlFor="faculty-subject">Subject</label>
+        <input
+          id="faculty-subject"
+          type="text"
+          value={facultySubject}
+          onChange={(event) => setFacultySubject(event.target.value)}
+          placeholder="Enter subject"
+        />
+
+        <label htmlFor="faculty-phone">Phone</label>
+        <input
+          id="faculty-phone"
+          type="tel"
+          value={facultyPhone}
+          onChange={(event) => setFacultyPhone(event.target.value)}
+          placeholder="Enter phone (optional)"
         />
 
         <label htmlFor="faculty-password">Password</label>
