@@ -239,3 +239,17 @@ function matchQuery(data, field, op, val) {
 export { db, auth, adminAuth, adminDb, useAdminSdk };
 export default admin;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
