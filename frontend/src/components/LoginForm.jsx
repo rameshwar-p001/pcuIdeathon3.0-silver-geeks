@@ -18,6 +18,7 @@ function LoginForm({
     <div className="auth-card">
       <div className="auth-headline">
         <h2>Campus Login</h2>
+        <p>Sign in to access your Smart Campus workspace.</p>
       </div>
 
       {errorMessage && (
@@ -36,7 +37,8 @@ function LoginForm({
         <input
           id="email"
           type="text"
-          placeholder="Enter email or id"
+          placeholder="name@campus.local or user ID"
+          autoComplete="username"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
@@ -47,7 +49,8 @@ function LoginForm({
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
-            placeholder="Enter password"
+            placeholder="Enter your password"
+            autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
@@ -80,6 +83,8 @@ function LoginForm({
         <button type="submit" className="submit-btn">
           Login
         </button>
+
+        <p className="login-security-note">Your session is encrypted and protected.</p>
       </form>
     </div>
   )

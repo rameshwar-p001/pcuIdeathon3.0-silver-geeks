@@ -3,7 +3,7 @@ import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, up
 import { db } from '../lib/firebase'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
-import AttendanceQRScanner from './AttendanceQRScanner'
+import StudentAttendanceOverview from './StudentAttendanceOverview'
 const ERP_MODULES = [
   { name: 'Academic', code: 'AC', type: 'academic', path: '/Academics' },
   { name: 'AI Based Doubt Section', code: 'AI', type: 'doubt', path: '/AIDoubtSection' },
@@ -582,26 +582,89 @@ function StudentDashboard({ user, onLogout }) {
     return `${attendancePercentage}%`
   }, [attendancePercentage, isLoading])
 
-  useEffect(() => {
-    let presentCount = 0
-    let totalCount = 0
+  const subjectAttendance = useMemo(() => {
+    const grouped = new Map()
+    const subjectDisplayByKey = new Map()
+    const normalizeSubject = (value) => String(value || '').trim().toLowerCase()
 
-    realtimeAttendanceRows.forEach((record) => {
-      const status = String(record.status || '').toLowerCase()
-      const isQrPresent = Boolean(record.qrVerified)
+    const timetableSubjectBySlot = new Map(
+      realtimeTimetableRows.map((row) => {
+        const dayKey = String(row.day || '').trim().toLowerCase()
+        const timeKey = String(row.time_slot || '').trim().toLowerCase()
+        return [`${dayKey}|${timeKey}`, row.subject || 'General']
+      }),
+    )
 
-      if (status === 'present' || isQrPresent) {
-        presentCount += 1
+    // Seed subject list from timetable so attendance card always reflects timetable subjects.
+    realtimeTimetableRows.forEach((row) => {
+      const subjectName = String(row.subject || '').trim() || 'General'
+      const subjectKey = normalizeSubject(subjectName)
+
+      if (!grouped.has(subjectKey)) {
+        grouped.set(subjectKey, { present: 0, total: 0 })
       }
 
-      if (status === 'present' || status === 'absent' || status === 'leave' || isQrPresent) {
-        totalCount += 1
+      if (!subjectDisplayByKey.has(subjectKey)) {
+        subjectDisplayByKey.set(subjectKey, subjectName)
       }
     })
 
-    const calculatedPercentage = totalCount > 0 ? Number(((presentCount / totalCount) * 100).toFixed(2)) : 0
+    realtimeAttendanceRows.forEach((record) => {
+      const status = String(record.status || '').toLowerCase()
+      const isPresent = status === 'present' || Boolean(record.qrVerified)
+      const isCounted = status === 'present' || status === 'absent' || status === 'leave' || Boolean(record.qrVerified)
+
+      if (!isCounted) {
+        return
+      }
+
+      const rowSubject = String(record.subject || '').trim()
+      const slotKey = `${String(record.day || '').trim().toLowerCase()}|${String(record.time_slot || '').trim().toLowerCase()}`
+      const resolvedSubject = rowSubject || timetableSubjectBySlot.get(slotKey) || 'General'
+      const resolvedSubjectKey = normalizeSubject(resolvedSubject)
+
+      const current = grouped.get(resolvedSubjectKey) || { present: 0, total: 0 }
+      current.total += 1
+      if (isPresent) {
+        current.present += 1
+      }
+      grouped.set(resolvedSubjectKey, current)
+
+      if (!subjectDisplayByKey.has(resolvedSubjectKey)) {
+        subjectDisplayByKey.set(resolvedSubjectKey, resolvedSubject)
+      }
+    })
+
+    return Array.from(grouped.entries())
+      .map(([subjectKey, counts]) => {
+        const percentageValue = counts.total > 0 ? Number(((counts.present / counts.total) * 100).toFixed(2)) : 0
+        return {
+          subject: subjectDisplayByKey.get(subjectKey) || subjectKey || 'General',
+          present: counts.present,
+          total: counts.total,
+          percentageValue,
+          percentage: `${percentageValue}%`,
+        }
+      })
+      .sort((a, b) => a.subject.localeCompare(b.subject))
+  }, [realtimeAttendanceRows, realtimeTimetableRows])
+
+  useEffect(() => {
+    const aggregate = subjectAttendance.reduce(
+      (acc, item) => {
+        acc.present += item.present
+        acc.total += item.total
+        return acc
+      },
+      { present: 0, total: 0 },
+    )
+
+    const calculatedPercentage = aggregate.total > 0
+      ? Number(((aggregate.present / aggregate.total) * 100).toFixed(2))
+      : 0
+
     setAttendancePercentage(calculatedPercentage)
-  }, [realtimeAttendanceRows])
+  }, [subjectAttendance])
 
   const moduleCards = useMemo(() => ERP_MODULES, [])
 
@@ -628,33 +691,6 @@ function StudentDashboard({ user, onLogout }) {
     'Quiz Section': 'Open quiz workspace for online tests, attempts, and scores.',
     'Fees Section': 'Open fees module for due amount, payment history, and receipts.',
   }
-
-  const subjectAttendance = useMemo(() => {
-    const grouped = new Map()
-
-    realtimeAttendanceRows.forEach((record) => {
-      const subject = record.subject || 'General'
-      const status = String(record.status || '').toLowerCase()
-      const isPresent = status === 'present' || Boolean(record.qrVerified)
-      const isCounted = status === 'present' || status === 'absent' || status === 'leave' || Boolean(record.qrVerified)
-
-      if (!isCounted) {
-        return
-      }
-
-      const current = grouped.get(subject) || { present: 0, total: 0 }
-      current.total += 1
-      if (isPresent) {
-        current.present += 1
-      }
-      grouped.set(subject, current)
-    })
-
-    return Array.from(grouped.entries()).map(([subject, counts]) => ({
-      subject,
-      percentage: `${counts.total > 0 ? Math.round((counts.present / counts.total) * 100) : 0}%`,
-    }))
-  }, [realtimeAttendanceRows])
 
   const todaySchedule = useMemo(() => {
     const normalizeDay = (value) => String(value || '').trim().slice(0, 3).toLowerCase()
@@ -2137,7 +2173,7 @@ function StudentDashboard({ user, onLogout }) {
   ]
 
   return (
-    <div className="auth-card dashboard-card">
+    <div className="auth-card dashboard-card student-dashboard-shell">
       <header className="student-navbar">
         <div className="student-brand">
           <div className="student-brand-badge">PU</div>
@@ -2302,9 +2338,15 @@ function StudentDashboard({ user, onLogout }) {
                       </div>
                       <p className="module-main-value">Overall: {attendanceLabel}</p>
                       <ul className="module-list">
-                        {subjectAttendance.map((item) => (
-                          <li key={item.subject}>{item.subject}: {item.percentage}</li>
-                        ))}
+                        {subjectAttendance.length === 0 ? (
+                          <li>No attendance records available yet.</li>
+                        ) : (
+                          subjectAttendance.map((item) => (
+                            <li key={item.subject}>
+                              {item.subject}: {item.percentage} ({item.present}/{item.total})
+                            </li>
+                          ))
+                        )}
                       </ul>
                       <p className={`status-pill ${isDefaulter ? 'danger' : 'ok'}`}>
                         {isLoading ? 'Loading...' : isDefaulter ? 'Defaulter Warning' : 'Good Standing'}
@@ -3566,7 +3608,7 @@ function StudentDashboard({ user, onLogout }) {
         </>
       )}
 
-      {activeView === 'attendance' && <AttendanceQRScanner user={user} />}
+      {activeView === 'attendance' && <StudentAttendanceOverview user={user} attendanceRows={realtimeAttendanceRows} />}
 
       {activeView === 'profile' && (
         <section className="admin-panel-card student-profile-panel">

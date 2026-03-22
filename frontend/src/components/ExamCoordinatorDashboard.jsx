@@ -15,6 +15,7 @@ const formatDate = (value) => {
 
 function ExamCoordinatorDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState('forms')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [students, setStudents] = useState([])
   const [examForms, setExamForms] = useState([])
   const [examTimetable, setExamTimetable] = useState([])
@@ -459,8 +460,17 @@ function ExamCoordinatorDashboard({ user, onLogout }) {
     { key: 'analytics', label: 'Analytics' },
   ]
 
+  const avatarText = String(user?.name || 'EX')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'EX'
+
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${isSidebarOpen ? ' sidebar-open' : ''}`}>
       <aside className="admin-sidebar">
         <h3>Exam Coordinator</h3>
         {navItems.map((item) => (
@@ -468,7 +478,10 @@ function ExamCoordinatorDashboard({ user, onLogout }) {
             key={item.key}
             type="button"
             className={activePage === item.key ? 'active' : ''}
-            onClick={() => setActivePage(item.key)}
+            onClick={() => {
+              setActivePage(item.key)
+              setIsSidebarOpen(false)
+            }}
           >
             {item.label}
           </button>
@@ -476,10 +489,33 @@ function ExamCoordinatorDashboard({ user, onLogout }) {
         <button type="button" onClick={onLogout}>Logout</button>
       </aside>
 
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Close sidebar"
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       <section className="admin-main">
         <div className="admin-navbar">
-          <h2>Exam Control Center</h2>
-          <p>{user?.name || 'Coordinator'}</p>
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            aria-label="Toggle sidebar"
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+          >
+            Menu
+          </button>
+          <div className="admin-navbar-main">
+            <h2>Exam Control Center</h2>
+          </div>
+          <div className="admin-navbar-search">
+            <input type="search" placeholder="Search" aria-label="Search" />
+          </div>
+          <div className="admin-navbar-profile">
+            <span className="admin-avatar" aria-hidden="true">{avatarText}</span>
+            <p>{user?.name || 'Coordinator'}</p>
+          </div>
         </div>
 
         {errorMessage && <p className="field-error">{errorMessage}</p>}

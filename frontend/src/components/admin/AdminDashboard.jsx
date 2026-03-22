@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import AddFacultyForm from './AddFacultyForm'
 import AddCampusInchargeForm from './AddCampusInchargeForm'
 import AddPlacementCellForm from './AddPlacementCellForm'
@@ -48,6 +49,8 @@ function AdminDashboard({
   onAssignClassTeacher,
   onAssignStudentDivision,
 }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
   const users = [
     ...students.map((student) => ({
       ...student,
@@ -82,7 +85,7 @@ function AdminDashboard({
   ]
 
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${isSidebarOpen ? ' sidebar-open' : ''}`}>
       <AdminSidebar
         activeAdminPage={activeAdminPage}
         setActiveAdminPage={setActiveAdminPage}
@@ -90,10 +93,21 @@ function AdminDashboard({
           profileChangeRequests.filter((request) => request.status === 'pending').length
         }
         onLogout={onLogout}
+        onNavigate={() => setIsSidebarOpen(false)}
+      />
+
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Close sidebar"
+        onClick={() => setIsSidebarOpen(false)}
       />
 
       <section className="admin-main">
-        <AdminTopbar adminName={adminName} />
+        <AdminTopbar
+          adminName={adminName}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        />
 
         {successMessage && (
           <p className="field-success" role="status">

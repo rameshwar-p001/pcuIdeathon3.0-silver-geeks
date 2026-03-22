@@ -1,81 +1,94 @@
-function AdminSidebar({ activeAdminPage, setActiveAdminPage, pendingRequestsCount, onLogout }) {
+function AdminSidebar({
+  activeAdminPage,
+  setActiveAdminPage,
+  pendingRequestsCount,
+  onLogout,
+  onNavigate,
+}) {
+  const handleNavigate = (page) => {
+    setActiveAdminPage(page)
+    if (onNavigate) {
+      onNavigate()
+    }
+  }
+
   return (
     <aside className="admin-sidebar">
       <h3>ERP Admin</h3>
       <button
         type="button"
         className={activeAdminPage === 'dashboard' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('dashboard')}
+        onClick={() => handleNavigate('dashboard')}
       >
         Dashboard
       </button>
       <button
         type="button"
         className={activeAdminPage === 'student' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('student')}
+        onClick={() => handleNavigate('student')}
       >
         Add Student
       </button>
       <button
         type="button"
         className={activeAdminPage === 'faculty' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('faculty')}
+        onClick={() => handleNavigate('faculty')}
       >
         Add Faculty
       </button>
       <button
         type="button"
         className={activeAdminPage === 'campusIncharge' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('campusIncharge')}
+        onClick={() => handleNavigate('campusIncharge')}
       >
         Add Campus Incharge
       </button>
       <button
         type="button"
         className={activeAdminPage === 'placementCell' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('placementCell')}
+        onClick={() => handleNavigate('placementCell')}
       >
         Add Placement Cell
       </button>
       <button
         type="button"
         className={activeAdminPage === 'examCoordinator' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('examCoordinator')}
+        onClick={() => handleNavigate('examCoordinator')}
       >
         Add Exam Coordinator
       </button>
       <button
         type="button"
         className={activeAdminPage === 'users' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('users')}
+        onClick={() => handleNavigate('users')}
       >
         Manage Users
       </button>
       <button
         type="button"
         className={activeAdminPage === 'attendance' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('attendance')}
+        onClick={() => handleNavigate('attendance')}
       >
         Attendance
       </button>
       <button
         type="button"
         className={activeAdminPage === 'classTeacher' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('classTeacher')}
+        onClick={() => handleNavigate('classTeacher')}
       >
         Assign Class Teacher
       </button>
       <button
         type="button"
         className={activeAdminPage === 'studentDivision' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('studentDivision')}
+        onClick={() => handleNavigate('studentDivision')}
       >
         Assign Division
       </button>
       <button
         type="button"
         className={activeAdminPage === 'requests' ? 'active' : ''}
-        onClick={() => setActiveAdminPage('requests')}
+        onClick={() => handleNavigate('requests')}
       >
         Profile Requests{pendingRequestsCount > 0 ? ` (${pendingRequestsCount})` : ''}
       </button>

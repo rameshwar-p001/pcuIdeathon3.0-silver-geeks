@@ -1177,11 +1177,16 @@ function App() {
     <main className={`auth-page ${isAuthenticated ? 'authenticated' : ''}`}>
       {!isAuthenticated && (
         <section className="brand-panel" aria-label="Branding section">
-          <h1>Campus Ai portal</h1>
+          <p className="brand-kicker">Smart Campus <span className="erp-accent">ERP</span></p>
+          <h1>Smart Campus <span className="erp-accent">ERP</span></h1>
           <p className="brand-copy">
             Securely access your classes, attendance, and student dashboard in one
             clean place.
           </p>
+          <ul className="brand-points" aria-label="Platform key points">
+            <li>Role-based secure access with trusted authentication.</li>
+            <li>Real-time attendance, academic, and notice visibility.</li>
+          </ul>
         </section>
       )}
  

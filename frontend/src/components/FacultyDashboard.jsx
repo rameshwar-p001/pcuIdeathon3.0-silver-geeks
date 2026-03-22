@@ -3,7 +3,7 @@ import { collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/f
 
 import { apiRequest } from '../lib/api'
 import { db } from '../lib/firebase'
-import QRCodeGenerator from './QRCodeGenerator'
+import AIAttendanceCapture from './AIAttendanceCapture'
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const TIME_SLOTS = ['09:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00', '14:00-15:00']
 const DEFAULT_CSE_SUBJECTS = [
@@ -45,6 +45,7 @@ const getClassDisplayName = (classRow) => {
 
 function FacultyDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState('dashboard')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [classes, setClasses] = useState([])
   const [students, setStudents] = useState([])
   const [faculties, setFaculties] = useState([])
@@ -425,16 +426,28 @@ function FacultyDashboard({ user, onLogout }) {
     sideItems.splice(2, 0, { key: 'classTeacher', label: 'Class Teacher' })
 
     sideItems.splice(3, 0, { key: 'timetable', label: 'Timetable' })
-    sideItems.splice(4, 0, { key: 'qrcode', label: 'Attendance QR' })
+    sideItems.splice(4, 0, { key: 'attendanceAI', label: 'Take Attendance' })
   }
   useEffect(() => {
-    if (!isAssignedClassTeacher && (activePage === 'classTeacher' || activePage === 'timetable')) {
+    if (
+      !isAssignedClassTeacher &&
+      (activePage === 'classTeacher' || activePage === 'timetable' || activePage === 'attendanceAI')
+    ) {
       setActivePage('dashboard')
     }
   }, [isAssignedClassTeacher, activePage])
 
+  const facultyAvatarText = String(user?.name || 'FC')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'FC'
+
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${isSidebarOpen ? ' sidebar-open' : ''}`}>
       <aside className="admin-sidebar">
         <h3>Faculty Portal</h3>
         {sideItems.map((item) => (
@@ -442,7 +455,10 @@ function FacultyDashboard({ user, onLogout }) {
             key={item.key}
             type="button"
             className={activePage === item.key ? 'active' : ''}
-            onClick={() => setActivePage(item.key)}
+            onClick={() => {
+              setActivePage(item.key)
+              setIsSidebarOpen(false)
+            }}
           >
             {item.label}
           </button>
@@ -452,10 +468,33 @@ function FacultyDashboard({ user, onLogout }) {
         </button>
       </aside>
 
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Close sidebar"
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       <section className="admin-main">
         <div className="admin-topbar">
-          <h2>Faculty Dashboard</h2>
-          <p>{user?.name}</p>
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            aria-label="Toggle sidebar"
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+          >
+            Menu
+          </button>
+          <div className="admin-navbar-main">
+            <h2>Faculty Dashboard</h2>
+          </div>
+          <div className="admin-navbar-search">
+            <input type="search" placeholder="Search" aria-label="Search" />
+          </div>
+          <div className="admin-navbar-profile">
+            <span className="admin-avatar" aria-hidden="true">{facultyAvatarText}</span>
+            <p>{user?.name}</p>
+          </div>
         </div>
 
         {errorMessage && <p className="field-error">{errorMessage}</p>}
@@ -818,7 +857,7 @@ function FacultyDashboard({ user, onLogout }) {
 
                         if (!canEditTimetable) {
                           return (
-                            <td key={key} style={isOwnLecture ? { background: 'rgba(15, 118, 110, 0.12)' } : undefined}>
+                            <td key={key} className={isOwnLecture ? 'timetable-own-cell' : ''}>
                               <div>{row.subject || '-'}</div>
                               <small>{row.facultyId ? `Faculty: ${row.facultyId}` : ''}</small>
                             </td>
@@ -875,8 +914,8 @@ function FacultyDashboard({ user, onLogout }) {
           </div>
         )}
 
-        {!loading && isAssignedClassTeacher && activePage === 'qrcode' && (
-          <QRCodeGenerator classes={classes} user={user} />
+        {!loading && isAssignedClassTeacher && activePage === 'attendanceAI' && (
+          <AIAttendanceCapture classes={classes} user={user} />
         )}
       </section>
     </div>

@@ -22,6 +22,7 @@ const normalizeStatusLabel = (status) => {
 
 function CampusInchargeDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState('dashboard')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [complaints, setComplaints] = useState([])
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
@@ -143,8 +144,17 @@ function CampusInchargeDashboard({ user, onLogout }) {
     { key: 'history', label: 'History' },
   ]
 
+  const avatarText = String(user?.name || 'CI')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'CI'
+
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${isSidebarOpen ? ' sidebar-open' : ''}`}>
       <aside className="admin-sidebar">
         <h3>Campus Incharge</h3>
         {sideItems.map((item) => (
@@ -152,7 +162,10 @@ function CampusInchargeDashboard({ user, onLogout }) {
             key={item.key}
             type="button"
             className={activePage === item.key ? 'active' : ''}
-            onClick={() => setActivePage(item.key)}
+            onClick={() => {
+              setActivePage(item.key)
+              setIsSidebarOpen(false)
+            }}
           >
             {item.label}
           </button>
@@ -160,10 +173,33 @@ function CampusInchargeDashboard({ user, onLogout }) {
         <button type="button" onClick={onLogout}>Logout</button>
       </aside>
 
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Close sidebar"
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       <section className="admin-main">
         <div className="admin-navbar">
-          <h2>Campus Complaints Console</h2>
-          <p>{user?.name || 'Campus Incharge'}</p>
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            aria-label="Toggle sidebar"
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+          >
+            Menu
+          </button>
+          <div className="admin-navbar-main">
+            <h2>Campus Complaints Console</h2>
+          </div>
+          <div className="admin-navbar-search">
+            <input type="search" placeholder="Search" aria-label="Search" />
+          </div>
+          <div className="admin-navbar-profile">
+            <span className="admin-avatar" aria-hidden="true">{avatarText}</span>
+            <p>{user?.name || 'Campus Incharge'}</p>
+          </div>
         </div>
 
         {errorMessage && <p className="field-error">{errorMessage}</p>}

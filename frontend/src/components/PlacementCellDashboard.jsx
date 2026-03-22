@@ -21,6 +21,7 @@ const normalizeStatusLabel = (value) => {
 
 function PlacementCellDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState('companies')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [companies, setCompanies] = useState([])
   const [applications, setApplications] = useState([])
   const [grievances, setGrievances] = useState([])
@@ -216,8 +217,17 @@ function PlacementCellDashboard({ user, onLogout }) {
     { key: 'analytics', label: 'Analytics' },
   ]
 
+  const avatarText = String(user?.name || 'PL')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'PL'
+
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${isSidebarOpen ? ' sidebar-open' : ''}`}>
       <aside className="admin-sidebar">
         <h3>Placement Cell</h3>
         {navItems.map((item) => (
@@ -225,7 +235,10 @@ function PlacementCellDashboard({ user, onLogout }) {
             key={item.key}
             type="button"
             className={activePage === item.key ? 'active' : ''}
-            onClick={() => setActivePage(item.key)}
+            onClick={() => {
+              setActivePage(item.key)
+              setIsSidebarOpen(false)
+            }}
           >
             {item.label}
           </button>
@@ -233,10 +246,33 @@ function PlacementCellDashboard({ user, onLogout }) {
         <button type="button" onClick={onLogout}>Logout</button>
       </aside>
 
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Close sidebar"
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       <section className="admin-main">
         <div className="admin-navbar">
-          <h2>Placement Cell Dashboard</h2>
-          <p>{user?.name || 'Officer'}</p>
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            aria-label="Toggle sidebar"
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+          >
+            Menu
+          </button>
+          <div className="admin-navbar-main">
+            <h2>Placement Cell Dashboard</h2>
+          </div>
+          <div className="admin-navbar-search">
+            <input type="search" placeholder="Search" aria-label="Search" />
+          </div>
+          <div className="admin-navbar-profile">
+            <span className="admin-avatar" aria-hidden="true">{avatarText}</span>
+            <p>{user?.name || 'Officer'}</p>
+          </div>
         </div>
 
         {errorMessage && <p className="field-error">{errorMessage}</p>}
