@@ -249,8 +249,12 @@ function AttendanceQRScanner({ user }) {
         return
       }
 
-      const width = video.videoWidth || 640
-      const height = video.videoHeight || 480
+      const sourceWidth = video.videoWidth || 640
+      const sourceHeight = video.videoHeight || 480
+      const maxDimension = 640
+      const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight))
+      const width = Math.max(1, Math.round(sourceWidth * scale))
+      const height = Math.max(1, Math.round(sourceHeight * scale))
 
       canvas.width = width
       canvas.height = height
@@ -258,7 +262,7 @@ function AttendanceQRScanner({ user }) {
       const context = canvas.getContext('2d')
       context.drawImage(video, 0, 0, width, height)
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.75)
       const base64 = dataUrl.split(',')[1]
 
       const response = await apiRequest('/api/attendance/face-verify', {

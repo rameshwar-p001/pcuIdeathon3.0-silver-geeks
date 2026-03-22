@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import attendanceRoutes from './routes/attendance.js';
@@ -8,7 +10,8 @@ import collaborationRoutes from './routes/collaboration.js';
 import facultyRoutes from './routes/faculty.js';
 import aiRoutes from './routes/ai.js';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -27,7 +30,8 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.REQUEST_BODY_LIMIT || '10mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -86,6 +90,31 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'Backend is running' });
+});
+
+// Ensure body parser errors are returned as JSON for frontend API helpers.
+app.use((err, req, res, next) => {
+  if (!err) {
+    return next();
+  }
+
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return res.status(413).json({
+      success: false,
+      message: 'Request payload is too large. Try recapturing face image and retry.',
+      error: err.message,
+    });
+  }
+
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      message: 'Malformed JSON payload',
+      error: err.message,
+    });
+  }
+
+  return next(err);
 });
 
 // Start server

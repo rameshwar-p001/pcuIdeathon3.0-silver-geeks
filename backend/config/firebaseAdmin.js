@@ -5,9 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 
-dotenv.config();
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 const projectId = process.env.FIREBASE_PROJECT_ID || 'campus-8a535';
 const apiKey = process.env.FIREBASE_API_KEY;
 

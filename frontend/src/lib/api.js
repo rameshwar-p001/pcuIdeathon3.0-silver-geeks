@@ -86,9 +86,11 @@ async function getAuthHeaders(forceRefresh = false) {
 }
 
 export async function apiRequest(path, options = {}) {
-  const makeRequest = async (forceRefreshToken = false) => {
+  const isRelativeApiPath = typeof path === 'string' && path.startsWith('/api/')
+
+  const makeRequest = async (forceRefreshToken = false, useSameOrigin = false) => {
     const headers = await getAuthHeaders(forceRefreshToken)
-    const primaryUrl = `${apiBaseUrl}${path}`
+    const primaryUrl = useSameOrigin ? path : `${apiBaseUrl}${path}`
 
     try {
       return await fetch(primaryUrl, {
@@ -100,7 +102,7 @@ export async function apiRequest(path, options = {}) {
       })
     } catch {
       // If direct backend tunnel is unreachable, retry via same-origin /api proxy.
-      if (typeof window !== 'undefined' && apiBaseUrl && apiBaseUrl.includes('.devtunnels.ms')) {
+      if (!useSameOrigin && typeof window !== 'undefined' && apiBaseUrl && apiBaseUrl.includes('.devtunnels.ms')) {
         try {
           return await fetch(path, {
             ...options,
@@ -125,10 +127,31 @@ export async function apiRequest(path, options = {}) {
     response = await makeRequest(true)
   }
 
-  const payload = await response.json().catch(() => ({}))
+  // If direct base URL still returns 401, retry one last time through same-origin /api.
+  // This helps when VITE_API_BASE_URL host is reachable but not the actual backend.
+  if (response.status === 401 && isRelativeApiPath && typeof window !== 'undefined') {
+    response = await makeRequest(true, true)
+  }
+
+  const rawText = await response.text().catch(() => '')
+  let payload = {}
+  try {
+    payload = rawText ? JSON.parse(rawText) : {}
+  } catch {
+    payload = {}
+  }
+
   if (!response.ok || payload.success === false) {
+    const contentType = response.headers.get('content-type') || ''
+    const backendRawReason = !payload.message && rawText && !contentType.includes('application/json')
+      ? `: ${rawText.replace(/\s+/g, ' ').slice(0, 140)}`
+      : ''
     const backendReason = payload?.error ? `: ${payload.error}` : ''
-    throw new Error(payload.message ? `${payload.message}${backendReason}` : `API request failed (${response.status})`)
+    throw new Error(
+      payload.message
+        ? `${payload.message}${backendReason}`
+        : `API request failed (${response.status})${backendRawReason}`
+    )
   }
 
   return payload
