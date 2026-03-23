@@ -9,6 +9,7 @@ import attendanceRoutes from './routes/attendance.js';
 import collaborationRoutes from './routes/collaboration.js';
 import facultyRoutes from './routes/faculty.js';
 import aiRoutes from './routes/ai.js';
+import trainingRoutes from './routes/training.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -41,6 +42,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/faculty', facultyRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/training', trainingRoutes);
 
 app.get('/', (req, res) => {
   res.json({

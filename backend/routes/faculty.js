@@ -27,10 +27,11 @@ const requireFacultyOrAdmin = async (req, res, next) => {
     }
 
     const role = userDoc.data().role;
-    if (role !== 'faculty' && role !== 'admin') {
+    // Accept faculty, admin, and coordinator roles
+    if (role !== 'faculty' && role !== 'admin' && role !== 'coordinator') {
       return res.status(403).json({
         success: false,
-        message: 'Faculty access required'
+        message: 'Faculty/Coordinator access required'
       });
     }
 
@@ -494,6 +495,85 @@ router.put('/timetable', requireAdminSdk, verifyToken, requireFacultyOrAdmin, as
       success: false,
       message: 'Failed to update timetable',
       error: error.message
+    });
+  }
+});
+
+// Get students by department sorted by GitHub score (Placement Coordinator)
+router.get('/students-by-github-score', requireAdminSdk, verifyToken, requireFacultyOrAdmin, async (req, res) => {
+  try {
+    const { department } = req.query;
+
+    // Get all students first, then filter in-memory
+    let query = db.collection('users').where('role', '==', 'student');
+    const snapshot = await query.get();
+    
+    console.log(`[DEBUG] Total students found: ${snapshot.size}`);
+
+    let students = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        
+        // Log each student's GitHub data
+        if (data.gitHubProfile) {
+          console.log(`[DEBUG] Student ${data.name} (${doc.id}):`, {
+            hasGitHubProfile: true,
+            username: data.gitHubProfile.username,
+            score: data.gitHubScore,
+            profileKeys: Object.keys(data.gitHubProfile),
+          });
+        }
+        
+        const student = {
+          uid: doc.id,
+          name: data.name,
+          email: data.email,
+          department: data.department || 'N/A',
+          enrollmentNumber: data.enrollmentNumber,
+          cgpa: data.cgpa,
+          gitHubProfile: data.gitHubProfile || null,
+          gitHubScore: data.gitHubScore || 0,
+        };
+        
+        return student;
+      })
+      .filter((student) => {
+        // Only show students with GitHub profiles
+        const hasGitHub = student.gitHubProfile && student.gitHubProfile.username;
+        
+        if (!hasGitHub) {
+          console.log(`[DEBUG] Filtering out ${student.name}: No GitHub profile or username`);
+          return false;
+        }
+        
+        // Filter by department if specified
+        if (department && String(department).trim()) {
+          const matches = String(student.department).toLowerCase() === String(department).toLowerCase().trim();
+          if (!matches) {
+            console.log(`[DEBUG] Filtering out ${student.name}: Department mismatch (${student.department} vs ${department})`);
+          }
+          return matches;
+        }
+        
+        console.log(`[DEBUG] Including ${student.name} in results`);
+        return true;
+      })
+      .sort((a, b) => (b.gitHubScore || 0) - (a.gitHubScore || 0)); // Sort by score descending
+    
+    console.log(`[DEBUG] Students with GitHub profiles after filtering: ${students.length}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Students sorted by GitHub score retrieved',
+      data: students,
+      total: students.length,
+    });
+  } catch (error) {
+    console.error('Get students by GitHub score error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve students',
+      error: error.message,
     });
   }
 });

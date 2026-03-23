@@ -164,7 +164,7 @@ function App() {
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession)
-        const validRoles = ['admin', 'student', 'faculty', 'campusIncharge', 'placementCell', 'examCoordinator']
+        const validRoles = ['admin', 'student', 'faculty', 'campusIncharge', 'placementCell', 'coordinator', 'examCoordinator']
 
         if (!validRoles.includes(parsed?.role) || !parsed?.user) {
           localStorage.removeItem(SESSION_KEY)
@@ -384,7 +384,7 @@ function App() {
       const profile = snapshot.data()
       const role = profile.role
 
-      if (role !== 'student' && role !== 'faculty' && role !== 'campusIncharge' && role !== 'placementCell' && role !== 'examCoordinator') {
+      if (role !== 'student' && role !== 'faculty' && role !== 'campusIncharge' && role !== 'placementCell' && role !== 'coordinator' && role !== 'examCoordinator') {
         await signOut(auth)
         setErrorMessage('Invalid account role. Contact admin.')
         return
@@ -1327,7 +1327,7 @@ function App() {
          {isAuthenticated && loggedInRole === 'campusIncharge' && (
            <CampusInchargeDashboard user={loggedInUser} onLogout={handleLogout} />
          )}
-         {isAuthenticated && loggedInRole === 'placementCell' && (
+         {isAuthenticated && (loggedInRole === 'placementCell' || loggedInRole === 'coordinator') && (
            <PlacementCellDashboard user={loggedInUser} onLogout={handleLogout} />
          )}
          {isAuthenticated && loggedInRole === 'examCoordinator' && (

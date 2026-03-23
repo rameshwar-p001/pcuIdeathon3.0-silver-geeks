@@ -1,6 +1,7 @@
 import express from 'express';
 import { auth, db, useAdminSdk } from '../config/firebaseAdmin.js';
 import { verifyToken } from '../middleware/auth.js';
+import { getGitHubScore } from '../utils/github.js';
 
 const router = express.Router();
 
@@ -176,6 +177,83 @@ router.get('/me', verifyToken, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve user profile',
+      error: error.message
+    });
+  }
+});
+
+// Update GitHub profile and calculate score
+router.post('/update-github-profile', verifyToken, async (req, res) => {
+  try {
+    const { gitHubUrl } = req.body;
+
+    // Validation
+    if (!gitHubUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'GitHub URL is required'
+      });
+    }
+
+    // Get GitHub score and data
+    const gitHubData = await getGitHubScore(gitHubUrl);
+    
+    console.log('[DEBUG] GitHub data fetched:', {
+      username: gitHubData.username,
+      score: gitHubData.totalScore,
+      repoCount: gitHubData.repoCount,
+    });
+
+    // Update user profile in Firestore
+    const userDocRef = db.collection('users').doc(req.user.uid);
+    
+    await userDocRef.update({
+      gitHubProfile: {
+        username: gitHubData.username,
+        url: gitHubData.gitHubUrl,
+        avatarUrl: gitHubData.avatarUrl,
+        score: gitHubData.totalScore,
+        repoCount: gitHubData.repoCount,
+        repoScore: gitHubData.repoScore,
+        activityScore: gitHubData.activityScore,
+        lastUpdated: gitHubData.lastUpdated,
+        fetchedAt: new Date().toISOString(),
+      },
+      gitHubScore: gitHubData.totalScore, // Denormalized for easy sorting
+    });
+    
+    console.log('[DEBUG] GitHub profile saved for user:', req.user.uid);
+
+    return res.status(200).json({
+      success: true,
+      message: 'GitHub profile updated successfully',
+      data: {
+        username: gitHubData.username,
+        gitHubUrl: gitHubData.gitHubUrl,
+        score: gitHubData.totalScore,
+        repoCount: gitHubData.repoCount,
+        repoScore: gitHubData.repoScore,
+        activityScore: gitHubData.activityScore,
+      }
+    });
+  } catch (error) {
+    console.error('GitHub profile update error:', error);
+    
+    let statusCode = 500;
+    let message = 'Failed to update GitHub profile';
+
+    // Handle specific error cases
+    if (error.message.includes('not found')) {
+      statusCode = 404;
+      message = error.message;
+    } else if (error.message.includes('Invalid GitHub')) {
+      statusCode = 400;
+      message = error.message;
+    }
+
+    return res.status(statusCode).json({
+      success: false,
+      message: message,
       error: error.message
     });
   }

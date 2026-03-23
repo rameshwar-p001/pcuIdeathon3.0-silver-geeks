@@ -2103,8 +2103,26 @@
 }
 
 .student-dashboard-shell .erp-modules-grid {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+@media (max-width: 1200px) {
+  .student-dashboard-shell .erp-modules-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .student-dashboard-shell .erp-modules-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .student-dashboard-shell .erp-modules-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .student-dashboard-shell .pcu-module-card {
@@ -2233,4 +2251,58 @@
   .student-dashboard-shell .module-detail-card {
     grid-column: span 12;
   }
+}
+
+/* GitHub Profile Styling */
+.existing-github-wrap {
+  background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: #f4fffd;
+}
+
+.existing-github-wrap span {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+.github-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.github-profile-info p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.github-profile-info a {
+  color: #00d4ff;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.github-profile-info a:hover {
+  color: #00ffff;
+  text-decoration: underline;
+}
+
+.github-score {
+  display: inline-block;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  color: white;
 }

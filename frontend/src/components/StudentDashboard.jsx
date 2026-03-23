@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { apiRequest } from '../lib/api'
 
 import StudentAttendanceOverview from './StudentAttendanceOverview'
+import PlacementTraining from './PlacementTraining'
 const ERP_MODULES = [
   { name: 'Academic', code: 'AC', type: 'academic', path: '/Academics' },
   { name: 'AI Based Doubt Section', code: 'AI', type: 'doubt', path: '/AIDoubtSection' },
@@ -23,6 +25,7 @@ function StudentDashboard({ user, onLogout }) {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [activeView, setActiveView] = useState('summary')
+  const [showPlacementTraining, setShowPlacementTraining] = useState(false)
   const [requestName, setRequestName] = useState('')
   const [requestDepartment, setRequestDepartment] = useState('')
   const [requestSemester, setRequestSemester] = useState('')
@@ -121,9 +124,29 @@ function StudentDashboard({ user, onLogout }) {
   const [isUploadingSelfie, setIsUploadingSelfie] = useState(false)
   const [realtimeAttendanceRows, setRealtimeAttendanceRows] = useState([])
   const [realtimeTimetableRows, setRealtimeTimetableRows] = useState([])
+  const [gitHubUrl, setGitHubUrl] = useState('')
+  const [gitHubScore, setGitHubScore] = useState(null)
+  const [gitHubError, setGitHubError] = useState('')
+  const [gitHubMessage, setGitHubMessage] = useState('')
+  const [isUpdatingGitHub, setIsUpdatingGitHub] = useState(false)
 
   const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '')
   const normalizeClassValue = (value) => String(value || '').trim().toLowerCase()
+
+  // Get dynamic gradient color based on GitHub score
+  const getScoreColor = (score) => {
+    const numScore = Number(score) || 0;
+    if (numScore >= 4) {
+      // Green for excellent (4-5)
+      return ['#27ae60', '#2ecc71'];
+    } else if (numScore >= 2.5) {
+      // Orange for good/medium (2.5-4)
+      return ['#f39c12', '#f1c40f'];
+    } else {
+      // Red for poor (0-2.5)
+      return ['#e74c3c', '#c0392b'];
+    }
+  }
 
   useEffect(() => {
     const loadStudentSummary = async () => {
@@ -152,6 +175,8 @@ function StudentDashboard({ user, onLogout }) {
         setRequestDepartment(profileData.department || '')
         setRequestSemester(profileData.semester ? String(profileData.semester) : '')
         setRequestPhone(profileData.phone || '')
+        setGitHubUrl(profileData.gitHubProfile?.url || '')
+        setGitHubScore(profileData.gitHubScore || null)
 
         setAttendancePercentage(0)
       } catch {
@@ -979,6 +1004,11 @@ function StudentDashboard({ user, onLogout }) {
       window.history.pushState({}, '', '/')
     }
     setActiveRoutePath('')
+  }
+
+  const handlePlacementTrainingBack = () => {
+    setShowPlacementTraining(false)
+    handleModuleClick('/Placement')
   }
 
   const goToTimetableRoute = () => {
@@ -2159,6 +2189,45 @@ function StudentDashboard({ user, onLogout }) {
     }
   }
 
+  const handleGitHubProfileUpdate = async (event) => {
+    event.preventDefault()
+    setGitHubError('')
+    setGitHubMessage('')
+
+    if (!user?.uid) {
+      setGitHubError('Unable to identify student session.')
+      return
+    }
+
+    if (!gitHubUrl.trim()) {
+      setGitHubError('Please enter a GitHub profile URL or username.')
+      return
+    }
+
+    setIsUpdatingGitHub(true)
+
+    try {
+      const result = await apiRequest('/api/auth/update-github-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          gitHubUrl: gitHubUrl.trim(),
+        }),
+      })
+
+      setGitHubScore(result.data.score)
+      setProfile((prev) => ({
+        ...(prev || {}),
+        gitHubProfile: result.data,
+        gitHubScore: result.data.score,
+      }))
+      setGitHubMessage(`GitHub profile updated! Score: ⭐ ${result.data.score} / 5`)
+    } catch (error) {
+      setGitHubError(error.message || 'Unable to update GitHub profile. Please check the URL and try again.')
+    } finally {
+      setIsUpdatingGitHub(false)
+    }
+  }
+
   const profileRows = [
     { label: 'Full Name', value: studentName },
     { label: 'Enrollment Number', value: enrollmentNumber },
@@ -2168,9 +2237,14 @@ function StudentDashboard({ user, onLogout }) {
     { label: 'Phone', value: profile?.phone || 'N/A' },
     { label: 'Attendance', value: attendanceLabel },
     { label: 'Selfie Verification', value: hasSelfie ? 'Uploaded' : 'Mandatory upload pending' },
+    { label: 'GitHub Score', value: gitHubScore ? `⭐ ${gitHubScore} / 5` : 'Not set' },
     { label: 'Fee Status', value: feeStatus },
     { label: 'Pending Assignments', value: isLoading ? 'Loading...' : pendingAssignmentsCount },
   ]
+
+  if (showPlacementTraining) {
+    return <PlacementTraining onBack={handlePlacementTrainingBack} />
+  }
 
   return (
     <div className="auth-card dashboard-card student-dashboard-shell">
@@ -3335,6 +3409,15 @@ function StudentDashboard({ user, onLogout }) {
                 </>
               ) : activeModule.type === 'placement' ? (
                 <>
+                  <div style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="submit-btn"
+                      onClick={() => setShowPlacementTraining(true)}
+                    >
+                      Go to Placement Training
+                    </button>
+                  </div>
                   <div className="module-detail-grid">
                     <article className="module-detail-card module-detail-card-wide">
                       <div className="module-detail-head">
@@ -3671,6 +3754,60 @@ function StudentDashboard({ user, onLogout }) {
               disabled={isUploadingSelfie || !selfieFile}
             >
               {isUploadingSelfie ? 'Uploading Selfie...' : 'Upload Selfie'}
+            </button>
+          </form>
+
+          <form className="auth-form request-form" onSubmit={handleGitHubProfileUpdate}>
+            <h4>GitHub Profile (For Placement)</h4>
+            <p className="login-hint">
+              Connect your GitHub profile to showcase your coding skills and contributions. Your GitHub score will be visible to placement coordinators.
+            </p>
+
+            {profile?.gitHubProfile && (
+              <div className="existing-github-wrap">
+                <span>Current GitHub Profile:</span>
+                <div className="github-profile-info">
+                  <p><strong>Username:</strong> <a href={profile.gitHubProfile.url} target="_blank" rel="noopener noreferrer">{profile.gitHubProfile.username}</a></p>
+                  <p><strong>Score:</strong> <span style={{ 
+                    background: `linear-gradient(135deg, ${getScoreColor(profile.gitHubProfile.score)[0]} 0%, ${getScoreColor(profile.gitHubProfile.score)[1]} 100%)`,
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontWeight: 'bold',
+                    display: 'inline-block'
+                  }}>⭐ {profile.gitHubProfile.score} / 5</span></p>
+                  <p><strong>Repositories:</strong> {profile.gitHubProfile.repoCount}</p>
+                </div>
+              </div>
+            )}
+
+            <label htmlFor="github-url">GitHub Profile URL or Username</label>
+            <input
+              id="github-url"
+              type="text"
+              value={gitHubUrl}
+              onChange={(event) => setGitHubUrl(event.target.value)}
+              placeholder="e.g., https://github.com/username or just: username"
+            />
+
+            {gitHubError && (
+              <p className="field-error" role="alert">
+                {gitHubError}
+              </p>
+            )}
+
+            {gitHubMessage && (
+              <p className="field-success" role="status">
+                {gitHubMessage}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={isUpdatingGitHub || !gitHubUrl.trim()}
+            >
+              {isUpdatingGitHub ? 'Updating GitHub Profile...' : 'Update GitHub Profile'}
             </button>
           </form>
 

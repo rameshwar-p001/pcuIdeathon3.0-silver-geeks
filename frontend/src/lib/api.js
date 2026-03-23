@@ -81,24 +81,26 @@ async function getAuthHeaders(forceRefresh = false) {
   const token = await currentUser.getIdToken(forceRefresh)
   return {
     Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
   }
 }
 
 export async function apiRequest(path, options = {}) {
   const isRelativeApiPath = typeof path === 'string' && path.startsWith('/api/')
+  const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
 
   const makeRequest = async (forceRefreshToken = false, useSameOrigin = false) => {
-    const headers = await getAuthHeaders(forceRefreshToken)
+    const authHeaders = await getAuthHeaders(forceRefreshToken)
+    const headers = {
+      ...authHeaders,
+      ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.headers || {}),
+    }
     const primaryUrl = useSameOrigin ? path : `${apiBaseUrl}${path}`
 
     try {
       return await fetch(primaryUrl, {
         ...options,
-        headers: {
-          ...headers,
-          ...(options.headers || {}),
-        },
+        headers,
       })
     } catch {
       // If direct backend tunnel is unreachable, retry via same-origin /api proxy.
@@ -106,10 +108,7 @@ export async function apiRequest(path, options = {}) {
         try {
           return await fetch(path, {
             ...options,
-            headers: {
-              ...headers,
-              ...(options.headers || {}),
-            },
+            headers,
           })
         } catch {
           // Continue to shared error below.

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { addDoc, collection, doc, onSnapshot, updateDoc } from 'firebase/firestore'
 
 import { db } from '../lib/firebase'
+import { apiRequest } from '../lib/api'
 
 const APPLICATION_STATUSES = ['applied', 'shortlisted', 'interview', 'selected', 'rejected']
 
@@ -25,6 +26,24 @@ function PlacementCellDashboard({ user, onLogout }) {
   const [companies, setCompanies] = useState([])
   const [applications, setApplications] = useState([])
   const [grievances, setGrievances] = useState([])
+  const [gitHubStudents, setGitHubStudents] = useState([])
+  const [gitHubStudentsLoading, setGitHubStudentsLoading] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState('')
+
+  // Get dynamic gradient color based on GitHub score
+  const getScoreColor = (score) => {
+    const numScore = Number(score) || 0;
+    if (numScore >= 4) {
+      // Green for excellent (4-5)
+      return ['#27ae60', '#2ecc71'];
+    } else if (numScore >= 2.5) {
+      // Orange for good/medium (2.5-4)
+      return ['#f39c12', '#f1c40f'];
+    } else {
+      // Red for poor (0-2.5)
+      return ['#e74c3c', '#c0392b'];
+    }
+  }
 
   const [companyName, setCompanyName] = useState('')
   const [companyRole, setCompanyRole] = useState('')
@@ -38,6 +57,8 @@ function PlacementCellDashboard({ user, onLogout }) {
   const [successMessage, setSuccessMessage] = useState('')
   const [isSavingCompany, setIsSavingCompany] = useState(false)
   const [updatingId, setUpdatingId] = useState('')
+
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '')
 
   useEffect(() => {
     const unsubscribeCompanies = onSnapshot(collection(db, 'placementCompanies'), (snapshot) => {
@@ -76,6 +97,32 @@ function PlacementCellDashboard({ user, onLogout }) {
       unsubscribeGrievances()
     }
   }, [])
+
+  // Fetch GitHub students sorted by score
+  useEffect(() => {
+    if (activePage !== 'students') {
+      return
+    }
+
+    const fetchGitHubStudents = async () => {
+      setGitHubStudentsLoading(true)
+      try {
+        let path = '/api/faculty/students-by-github-score'
+        if (selectedDepartment) {
+          path += `?department=${encodeURIComponent(selectedDepartment)}`
+        }
+
+        const result = await apiRequest(path)
+        setGitHubStudents(result.data || [])
+      } catch (error) {
+        console.error('Error fetching GitHub students:', error)
+      } finally {
+        setGitHubStudentsLoading(false)
+      }
+    }
+
+    fetchGitHubStudents()
+  }, [activePage, selectedDepartment, apiBaseUrl, user])
 
   const companyMap = useMemo(() => {
     const map = new Map()
@@ -214,6 +261,7 @@ function PlacementCellDashboard({ user, onLogout }) {
     { key: 'applications', label: 'Application Management' },
     { key: 'results', label: 'Result Management' },
     { key: 'grievances', label: 'Grievances' },
+    { key: 'students', label: 'Students (GitHub Score)' },
     { key: 'analytics', label: 'Analytics' },
   ]
 
@@ -474,6 +522,81 @@ function PlacementCellDashboard({ user, onLogout }) {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activePage === 'students' && (
+          <div className="admin-panel-card" style={{ marginTop: 12 }}>
+            <h3>Students by GitHub Score</h3>
+            <p className="login-hint">Students sorted by GitHub profile score (highest first). Only students with GitHub profiles are shown.</p>
+            
+            <div style={{ marginBottom: 16, marginTop: 12 }}>
+              <label htmlFor="dept-filter" style={{ marginRight: 8 }}>Filter by Department:</label>
+              <input
+                id="dept-filter"
+                type="text"
+                placeholder="Leave empty for all departments"
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ddd' }}
+              />
+            </div>
+
+            {gitHubStudentsLoading ? (
+              <p>Loading students...</p>
+            ) : gitHubStudents.length === 0 ? (
+              <p>No students with GitHub profiles found.</p>
+            ) : (
+              <div className="users-table-wrap">
+                <table className="users-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Name</th>
+                      <th>Enrollment</th>
+                      <th>Department</th>
+                      <th>CGPA</th>
+                      <th>GitHub Score ⭐</th>
+                      <th>Repos</th>
+                      <th>GitHub Profile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gitHubStudents.map((student, index) => (
+                      <tr key={student.uid}>
+                        <td><strong>#{index + 1}</strong></td>
+                        <td>{student.name || 'N/A'}</td>
+                        <td>{student.enrollmentNumber || 'N/A'}</td>
+                        <td>{student.department || 'N/A'}</td>
+                        <td>{student.cgpa || '-'}</td>
+                        <td>
+                          <span style={{ 
+                            background: `linear-gradient(135deg, ${getScoreColor(student.gitHubScore)[0]} 0%, ${getScoreColor(student.gitHubScore)[1]} 100%)`,
+                            color: 'white',
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            fontWeight: 'bold',
+                            display: 'inline-block'
+                          }}>
+                            {(student.gitHubScore || 0).toFixed(2)} / 5
+                          </span>
+                        </td>
+                        <td>{student.gitHubProfile?.repoCount || 0}</td>
+                        <td>
+                          {student.gitHubProfile?.url ? (
+                            <a href={student.gitHubProfile.url} target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc', textDecoration: 'none' }}>
+                              @{student.gitHubProfile.username}
+                            </a>
+                          ) : (
+                            'N/A'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

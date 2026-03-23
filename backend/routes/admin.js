@@ -337,7 +337,7 @@ router.get('/users/:uid', requireAdminSdk, verifyToken, requireAdmin, async (req
 // Update user - Admin only
 router.put('/users/:uid', requireAdminSdk, verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { name, department, phone, subject, enrollmentNumber, semester } = req.body;
+    const { name, department, phone, subject, enrollmentNumber, semester, role } = req.body;
 
     const updateData = {};
     if (name) updateData.name = name;
@@ -346,6 +346,7 @@ router.put('/users/:uid', requireAdminSdk, verifyToken, requireAdmin, async (req
     if (subject) updateData.subject = subject;
     if (enrollmentNumber) updateData.enrollmentNumber = enrollmentNumber;
     if (semester) updateData.semester = parseInt(semester);
+    if (role) updateData.role = role; // Allow updating role
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
